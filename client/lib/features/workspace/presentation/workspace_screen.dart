@@ -34,6 +34,7 @@ class WorkspaceScreen extends ConsumerStatefulWidget {
 class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTickerProviderStateMixin {
   final TextEditingController _targetController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
+  late final PageController _pageController;
   bool _isDragging = false;
   double _receiverProgress = 0.0;
   bool _isReceiving = false;
@@ -43,6 +44,7 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
   @override
   void initState() {
     super.initState();
+    _pageController = PageController(initialPage: 0);
     _pulseController = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 2),
@@ -51,10 +53,37 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
 
   @override
   void dispose() {
+    _pageController.dispose();
     _targetController.dispose();
     _scrollController.dispose();
     _pulseController.dispose();
     super.dispose();
+  }
+
+  void _navigateToPage(int index) {
+    setState(() {
+      switch (index) {
+        case 0:
+          _activeModal = ActiveDeckModal.none;
+          break;
+        case 1:
+          _activeModal = ActiveDeckModal.studio;
+          break;
+        case 2:
+          _activeModal = ActiveDeckModal.radar;
+          break;
+        case 3:
+          _activeModal = ActiveDeckModal.ledger;
+          break;
+      }
+    });
+    if (_pageController.hasClients) {
+      _pageController.animateToPage(
+        index,
+        duration: const Duration(milliseconds: 400),
+        curve: Curves.easeInOutCubic,
+      );
+    }
   }
 
   Future<void> _confirmSignOut() async {
@@ -153,12 +182,12 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
           SafeArea(
             child: Column(
               children: [
-                // Floating Glass Navbar (Aesthetic capsule style, perfectly proportioned)
+                // Floating Glass Navbar (Aesthetic capsule style, wide and balanced)
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
                   child: Center(
                     child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 920),
+                      constraints: const BoxConstraints(maxWidth: 1200),
                       child: _buildFloatingNavbar(userProfile),
                     ),
                   ),
@@ -170,25 +199,56 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
                     padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 6),
                     child: Center(
                       child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 920),
+                        constraints: const BoxConstraints(maxWidth: 1200),
                         child: _buildIncomingTransferBanner(incomingRequest),
                       ),
                     ),
                   ),
 
-                // Dedicated Separate Page View (Home, Studio, Radar, Ledger)
+                // Horizontal Sliding PageView (Home, Studio, Radar, Ledger)
                 Expanded(
-                  child: AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 240),
-                    switchInCurve: Curves.easeOutCubic,
-                    switchOutCurve: Curves.easeInCubic,
-                    child: _buildActivePage(
-                      provenanceState: provenanceState,
-                      peers: peers,
-                      activeStatus: activeStatus,
-                      progressState: progressState,
-                      incomingRequest: incomingRequest,
-                    ),
+                  child: PageView(
+                    controller: _pageController,
+                    physics: const NeverScrollableScrollPhysics(),
+                    children: [
+                      // Page 0: Home Page
+                      _buildHomePage(),
+
+                      // Page 1: Studio Page
+                      _buildPageLayout(
+                        title: 'PROVENANCE STUDIO',
+                        icon: Icons.fingerprint,
+                        badge: 'C2PA SEED & HARDWARE MANIFEST',
+                        description:
+                            'Ingest digital originals, bind immutable C2PA hardware manifests, and extract perceptual cryptographic hash matrices.',
+                        child: _buildProvenanceStudio(provenanceState),
+                      ),
+
+                      // Page 2: Radar Page
+                      _buildPageLayout(
+                        title: 'ENCLAVE RADAR',
+                        icon: Icons.wifi_tethering,
+                        badge: 'WEBRTC DTLS 1.3 / SCTP P2P',
+                        description:
+                            'Peer-to-peer AirDrop discovery mesh. Stream hardware-sealed assets directly between nodes without intermediary cloud storage.',
+                        child: _buildSecureTransferRadar(
+                          peers: peers,
+                          activeStatus: activeStatus,
+                          progressState: progressState,
+                          incomingRequest: incomingRequest,
+                        ),
+                      ),
+
+                      // Page 3: Ledger Page
+                      _buildPageLayout(
+                        title: 'IMMUTABLE ZERO-TRUST LEDGER',
+                        icon: Icons.lock_clock,
+                        badge: 'CRYPTOGRAPHIC AUDIT TRAIL',
+                        description:
+                            'Cryptographic tamper-evident provenance block history, verifying asset signature validity, perceptual hashes, and peer transmission logs.',
+                        child: _buildLedgerAuditTrail(),
+                      ),
+                    ],
                   ),
                 ),
               ],
@@ -284,22 +344,22 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
                 _buildNavTabItem(
                   'Home',
                   0,
-                  () => setState(() => _activeModal = ActiveDeckModal.none),
+                  () => _navigateToPage(0),
                 ),
                 _buildNavTabItem(
                   'Studio',
                   1,
-                  () => setState(() => _activeModal = ActiveDeckModal.studio),
+                  () => _navigateToPage(1),
                 ),
                 _buildNavTabItem(
                   'Radar',
                   2,
-                  () => setState(() => _activeModal = ActiveDeckModal.radar),
+                  () => _navigateToPage(2),
                 ),
                 _buildNavTabItem(
                   'Ledger',
                   3,
-                  () => setState(() => _activeModal = ActiveDeckModal.ledger),
+                  () => _navigateToPage(3),
                 ),
               ],
             ),
@@ -367,12 +427,12 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 7),
             child: Row(
               children: [
                 // Left: Logo & Brand (React Bits / Project Kerberos)
                 InkWell(
-                  onTap: () => setState(() => _activeModal = ActiveDeckModal.none),
+                  onTap: () => _navigateToPage(0),
                   borderRadius: BorderRadius.circular(100),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -599,7 +659,7 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
       children: [
         // Announcement Badge Pill
         InkWell(
-          onTap: () => setState(() => _activeModal = ActiveDeckModal.studio),
+          onTap: () => _navigateToPage(1),
           borderRadius: BorderRadius.circular(100),
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
@@ -699,63 +759,11 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
         ),
         const SizedBox(height: 20),
 
-        // Subtitle with Theme-Highlighted Concepts
+        // Subtitle (Kept as plain uniform text)
         ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 740),
-          child: Text.rich(
-            TextSpan(
-              children: [
-                const TextSpan(text: 'Interactive '),
-                const TextSpan(
-                  text: '3D Prismatic Shards',
-                  style: TextStyle(
-                    color: Color(0xFFE9D5FF),
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const TextSpan(text: ' protecting true '),
-                const TextSpan(
-                  text: 'digital originals',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const TextSpan(text: '. Seal assets with '),
-                const TextSpan(
-                  text: 'C2PA hardware manifests',
-                  style: TextStyle(
-                    color: Color(0xFFC084FC),
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const TextSpan(text: ', extract '),
-                const TextSpan(
-                  text: 'perceptual hash vectors',
-                  style: TextStyle(
-                    color: Color(0xFFA78BFA),
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const TextSpan(text: ', and stream '),
-                const TextSpan(
-                  text: 'encrypted payloads',
-                  style: TextStyle(
-                    color: Color(0xFF818CF8),
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const TextSpan(text: ' directly between peers over '),
-                const TextSpan(
-                  text: 'WebRTC DTLS tunnels',
-                  style: TextStyle(
-                    color: Color(0xFF67E8F9),
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const TextSpan(text: '.'),
-              ],
-            ),
+          constraints: const BoxConstraints(maxWidth: 780),
+          child: Text(
+            'Interactive 3D Prismatic Shards protecting true digital originals. Seal assets with C2PA hardware manifests, extract perceptual hash vectors, and stream encrypted payloads directly between peers over WebRTC DTLS tunnels.',
             textAlign: TextAlign.center,
             style: GoogleFonts.plusJakartaSans(
               fontSize: 15,
@@ -776,7 +784,7 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
               height: 46,
               padding: const EdgeInsets.symmetric(horizontal: 28),
               icon: Icons.upload_file,
-              onTap: () => setState(() => _activeModal = ActiveDeckModal.studio),
+              onTap: () => _navigateToPage(1),
               child: Text(
                 'Get started',
                 style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800),
@@ -788,7 +796,7 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
               height: 46,
               padding: const EdgeInsets.symmetric(horizontal: 24),
               icon: Icons.radar,
-              onTap: () => setState(() => _activeModal = ActiveDeckModal.radar),
+              onTap: () => _navigateToPage(2),
               child: Text(
                 'Launch Radar',
                 style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
@@ -804,9 +812,21 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
           spacing: 12,
           runSpacing: 10,
           children: [
-            _buildQuickActionBadge('Studio // Ingest & Seal', Icons.fingerprint, () => setState(() => _activeModal = ActiveDeckModal.studio)),
-            _buildQuickActionBadge('Radar // P2P AirDrop', Icons.wifi_tethering, () => setState(() => _activeModal = ActiveDeckModal.radar)),
-            _buildQuickActionBadge('Ledger // Audit Trail', Icons.lock_clock, () => setState(() => _activeModal = ActiveDeckModal.ledger)),
+            _buildQuickActionBadge(
+              'Studio // Ingest & Seal',
+              Icons.fingerprint,
+              () => _navigateToPage(1),
+            ),
+            _buildQuickActionBadge(
+              'Radar // P2P AirDrop',
+              Icons.wifi_tethering,
+              () => _navigateToPage(2),
+            ),
+            _buildQuickActionBadge(
+              'Ledger // Audit Trail',
+              Icons.lock_clock,
+              () => _navigateToPage(3),
+            ),
           ],
         ),
       ],
@@ -844,90 +864,29 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
   }
 
   // ==========================================
-  // DEDICATED SEPARATE PAGES UNDER NAVBAR
+  // DEDICATED FULL PAGES UNDER NAVBAR
   // ==========================================
-  Widget _buildActivePage({
-    required AsyncValue<dynamic> provenanceState,
-    required List<Map<String, dynamic>> peers,
-    required String activeStatus,
-    required AsyncValue<double> progressState,
-    required IncomingTransferRequest? incomingRequest,
-  }) {
-    switch (_activeModal) {
-      case ActiveDeckModal.none:
-        return KeyedSubtree(
-          key: const ValueKey('page_home'),
-          child: Column(
-            children: [
-              Expanded(
-                child: Center(
-                  child: SingleChildScrollView(
-                    controller: _scrollController,
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 920),
-                      child: _buildHeroSection(),
-                    ),
-                  ),
-                ),
+  Widget _buildHomePage() {
+    return Column(
+      children: [
+        Expanded(
+          child: Center(
+            child: SingleChildScrollView(
+              controller: _scrollController,
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 1100),
+                child: _buildHeroSection(),
               ),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                child: Center(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 1100),
-                    child: _buildFooter(),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        );
-
-      case ActiveDeckModal.studio:
-        return KeyedSubtree(
-          key: const ValueKey('page_studio'),
-          child: _buildPageLayout(
-            title: 'PROVENANCE STUDIO',
-            icon: Icons.fingerprint,
-            badge: 'C2PA SEED & HARDWARE MANIFEST',
-            description:
-                'Ingest digital originals, bind immutable C2PA hardware manifests, and extract perceptual cryptographic hash matrices.',
-            child: _buildProvenanceStudio(provenanceState),
-          ),
-        );
-
-      case ActiveDeckModal.radar:
-        return KeyedSubtree(
-          key: const ValueKey('page_radar'),
-          child: _buildPageLayout(
-            title: 'ENCLAVE RADAR',
-            icon: Icons.wifi_tethering,
-            badge: 'WEBRTC DTLS 1.3 / SCTP P2P',
-            description:
-                'Peer-to-peer AirDrop discovery mesh. Stream hardware-sealed assets directly between nodes without intermediary cloud storage.',
-            child: _buildSecureTransferRadar(
-              peers: peers,
-              activeStatus: activeStatus,
-              progressState: progressState,
-              incomingRequest: incomingRequest,
             ),
           ),
-        );
-
-      case ActiveDeckModal.ledger:
-        return KeyedSubtree(
-          key: const ValueKey('page_ledger'),
-          child: _buildPageLayout(
-            title: 'IMMUTABLE ZERO-TRUST LEDGER',
-            icon: Icons.lock_clock,
-            badge: 'CRYPTOGRAPHIC AUDIT TRAIL',
-            description:
-                'Cryptographic tamper-evident provenance block history, verifying asset signature validity, perceptual hashes, and peer transmission logs.',
-            child: _buildLedgerAuditTrail(),
-          ),
-        );
-    }
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 36, vertical: 14),
+          child: _buildFooter(),
+        ),
+      ],
+    );
   }
 
   Widget _buildPageLayout({
@@ -938,16 +897,16 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
     required Widget child,
   }) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 36, vertical: 16),
       child: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 1120),
+          constraints: const BoxConstraints(maxWidth: 1600),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               // Page Header Bar
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 16),
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
                 margin: const EdgeInsets.only(bottom: 20),
                 decoration: BoxDecoration(
                   color: const Color(0x14FFFFFF),
@@ -1029,7 +988,7 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
                     const SizedBox(width: 16),
                     // Back to Home Button
                     InkWell(
-                      onTap: () => setState(() => _activeModal = ActiveDeckModal.none),
+                      onTap: () => _navigateToPage(0),
                       borderRadius: BorderRadius.circular(100),
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
