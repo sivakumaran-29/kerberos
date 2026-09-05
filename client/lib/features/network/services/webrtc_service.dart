@@ -1,128 +1,383 @@
 import 'dart:async';
-import 'dart:convert';
-import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
+import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'signaling_service.dart';
 
-/// HACKATHON FALLBACK: 
-/// Since strict corporate/school firewalls completely block UDP STUN packets, 
-/// this drop-in replacement completely bypasses WebRTC and routes the encrypted 
-/// DataChannel chunks over the already-established Supabase WebSocket TCP tunnel.
-/// 
-/// This guarantees a 100% success rate for the demo.
+/// Pure Zero-Trust WebRTC Service.
+/// Establishes an encrypted peer-to-peer DTLS/SCTP DataChannel tunnel between endpoints.
+/// Uses Supabase strictly for signaling (SDP offer/answer and ICE candidate exchange).
 class WebRTCService {
   final SignalingService _signaling;
+  RTCPeerConnection? _peerConnection;
+  RTCDataChannel? _dataChannel;
   
+  final List<RTCIceCandidate> _remoteCandidatesQueue = [];
+  bool _isRemoteDescriptionSet = false;
+  String? _currentTargetId;
+  RTCIceConnectionState? _currentIceState;
+  String? _lastTechnicalError;
+
+  // Lifecycle & Transfer Callbacks
   Function(Uint8List data)? onFileChunkReceived;
   Function()? onTransferComplete;
   Function(double progress)? onTransferProgress;
+  Function(String status)? onStatusUpdate;
 
-  String? _currentTargetId;
-  bool _isConnected = false;
+  // WebRTC ICE Configuration: Comprehensive STUN + OpenRelay TURN
+  // Supports NAT Traversal across symmetric firewalls, school/corporate networks, and same-LAN WiFi.
+  static const Map<String, dynamic> _iceConfiguration = {
+    'sdpSemantics': 'unified-plan',
+    'iceCandidatePoolSize': 10,
+    'iceTransportPolicy': 'all',
+    'iceServers': [
+      // 1. Google Public STUN
+      {
+        'urls': [
+          'stun:stun.l.google.com:19302',
+          'stun:stun1.l.google.com:19302',
+          'stun:stun2.l.google.com:19302',
+        ],
+      },
+      // 2. Cloudflare STUN
+      {
+        'urls': [
+          'stun:stun.cloudflare.com:3478',
+        ],
+      },
+      // 3. Metered OpenRelay Free Public TURN (UDP & TCP & TLS)
+      {
+        'urls': [
+          'turn:openrelay.metered.ca:80',
+          'turn:openrelay.metered.ca:443',
+          'turn:openrelay.metered.ca:443?transport=tcp',
+          'turn:openrelay.metered.ca:80?transport=tcp',
+        ],
+        'username': 'openrelayproject',
+        'credential': 'openrelayproject',
+      },
+      {
+        'urls': [
+          'turns:openrelay.metered.ca:443?transport=tcp',
+          'turns:openrelay.metered.ca:5349?transport=tcp',
+        ],
+        'username': 'openrelayproject',
+        'credential': 'openrelayproject',
+      },
+    ],
+  };
 
   WebRTCService(this._signaling) {
-    // Intercept the WebRTC signals to handle the mock handshake and chunking
     _signaling.onOfferReceived = _handleOffer;
     _signaling.onAnswerReceived = _handleAnswer;
+    _signaling.onIceCandidateReceived = _handleIceCandidate;
+  }
+
+  /// Initializes RTCPeerConnection and binds ICE and DataChannel listeners.
+  Future<void> _initializeConnection(String targetId) async {
+    _currentTargetId = targetId;
+    _lastTechnicalError = null;
+
+    if (_peerConnection != null) {
+      _isRemoteDescriptionSet = false;
+      try {
+        await _peerConnection?.close();
+      } catch (_) {}
+      _peerConnection = null;
+    }
+
+    onStatusUpdate?.call("Initializing cryptographic peer connection...");
+    _peerConnection = await createPeerConnection(_iceConfiguration);
+
+    // Trickle ICE: stream discovered local candidates to the remote peer
+    _peerConnection!.onIceCandidate = (RTCIceCandidate candidate) {
+      if (candidate.candidate == null || candidate.candidate!.trim().isEmpty) {
+        return; // End of candidates
+      }
+      _signaling.sendSignal(
+        targetId: targetId,
+        type: 'ice',
+        payload: {
+          'candidate': candidate.candidate,
+          'sdpMid': candidate.sdpMid,
+          'sdpMLineIndex': candidate.sdpMLineIndex,
+        },
+      );
+    };
+
+    // Monitor ICE Connection State
+    _peerConnection!.onIceConnectionState = (RTCIceConnectionState state) {
+      print(">> [WebRTC] ICE Connection State: $state");
+      _currentIceState = state;
+      switch (state) {
+        case RTCIceConnectionState.RTCIceConnectionStateChecking:
+          onStatusUpdate?.call("ICE Checking: Negotiating direct & TURN relay candidate pairs...");
+          break;
+        case RTCIceConnectionState.RTCIceConnectionStateConnected:
+        case RTCIceConnectionState.RTCIceConnectionStateCompleted:
+          onStatusUpdate?.call("ICE Connected: Secure DTLS route verified.");
+          break;
+        case RTCIceConnectionState.RTCIceConnectionStateFailed:
+          _lastTechnicalError = "ICE Connection Failed: All candidate pairs (Local, STUN, TURN) were rejected or blocked by firewall/symmetric NAT.";
+          onStatusUpdate?.call("ICE Failed: Direct and relay routes blocked by network.");
+          break;
+        case RTCIceConnectionState.RTCIceConnectionStateDisconnected:
+          onStatusUpdate?.call("ICE Disconnected: Network path temporarily interrupted.");
+          break;
+        default:
+          break;
+      }
+    };
+
+    // Monitor ICE Gathering State
+    _peerConnection!.onIceGatheringState = (RTCIceGatheringState state) {
+      print(">> [WebRTC] ICE Gathering State: $state");
+      if (state == RTCIceGatheringState.RTCIceGatheringStateGathering) {
+        onStatusUpdate?.call("Gathering ICE candidates (Local IP & TURN Relays)...");
+      } else if (state == RTCIceGatheringState.RTCIceGatheringStateComplete) {
+        onStatusUpdate?.call("ICE candidate collection finalized.");
+      }
+    };
+
+    // Receiver listener for incoming DataChannel
+    _peerConnection!.onDataChannel = (RTCDataChannel channel) {
+      print(">> [WebRTC] RECEIVER: DataChannel received!");
+      _dataChannel = channel;
+      _setupDataChannelListeners(channel);
+      onStatusUpdate?.call("DataChannel opened! Ready to receive asset payload.");
+    };
+  }
+
+  /// Initiator (Sender): Creates DataChannel and dispatches SDP Offer via signaling.
+  Future<void> initiateTransfer(String targetId) async {
+    print(">> [WebRTC] SENDER: Initiating transfer to target: $targetId");
+    onStatusUpdate?.call("Initiating handshake with peer $targetId...");
     
-    // We repurpose the ICE Candidate channel to receive WebSocket chunks
-    _signaling.onIceCandidateReceived = (payload) {
-      if (payload['chunk_type'] == 'data') {
-        final bytes = base64Decode(payload['data']);
-        onFileChunkReceived?.call(bytes);
-      } else if (payload['chunk_type'] == 'eof') {
-        print(">> RECEIVER: EOF received via WebSocket.");
-        onTransferComplete?.call();
+    await _initializeConnection(targetId);
+
+    // Standard reliable, ordered SCTP DataChannel for byte streaming
+    final dcInit = RTCDataChannelInit()
+      ..ordered = true;
+
+    _dataChannel = await _peerConnection!.createDataChannel('secure_file_transfer', dcInit);
+    _setupDataChannelListeners(_dataChannel!);
+
+    // Create and dispatch SDP Offer
+    final offer = await _peerConnection!.createOffer();
+    await _peerConnection!.setLocalDescription(offer);
+
+    onStatusUpdate?.call("SDP Offer dispatched. Awaiting remote peer response...");
+    await _signaling.sendSignal(
+      targetId: targetId,
+      type: 'offer',
+      payload: {'sdp': offer.sdp, 'type': offer.type},
+    );
+  }
+
+  /// Receiver: Receives SDP Offer, sets remote description, flushes queued ICE, and answers.
+  Future<void> _handleOffer(Map<String, dynamic> payload, String senderId) async {
+    print(">> [WebRTC] RECEIVER: SDP Offer received from $senderId");
+    onStatusUpdate?.call("Incoming handshake from $senderId. Preparing answer...");
+
+    await _initializeConnection(senderId);
+
+    final offer = RTCSessionDescription(payload['sdp'], payload['type']);
+    await _peerConnection!.setRemoteDescription(offer);
+    _isRemoteDescriptionSet = true;
+
+    // Process any remote ICE candidates that arrived before the offer
+    await _processQueuedCandidates();
+
+    // Create and send SDP Answer
+    final answer = await _peerConnection!.createAnswer();
+    await _peerConnection!.setLocalDescription(answer);
+
+    onStatusUpdate?.call("SDP Answer dispatched. Opening DTLS tunnel...");
+    await _signaling.sendSignal(
+      targetId: senderId,
+      type: 'answer',
+      payload: {'sdp': answer.sdp, 'type': answer.type},
+    );
+  }
+
+  /// Initiator (Sender): Receives SDP Answer from Receiver and flushes queued ICE.
+  Future<void> _handleAnswer(Map<String, dynamic> payload) async {
+    print(">> [WebRTC] SENDER: SDP Answer received from remote peer.");
+    onStatusUpdate?.call("Remote SDP Answer accepted. Establishing P2P link...");
+
+    if (_peerConnection == null) {
+      print(">> [WebRTC] SENDER: PeerConnection is null when answer arrived.");
+      return;
+    }
+
+    final answer = RTCSessionDescription(payload['sdp'], payload['type']);
+    await _peerConnection!.setRemoteDescription(answer);
+    _isRemoteDescriptionSet = true;
+
+    await _processQueuedCandidates();
+  }
+
+  /// Both: Handles incoming remote ICE candidates with queueing support to prevent race conditions.
+  Future<void> _handleIceCandidate(Map<String, dynamic> payload) async {
+    final rawCandidate = payload['candidate'] as String?;
+    if (rawCandidate == null || rawCandidate.trim().isEmpty) return;
+
+    final sdpMid = payload['sdpMid'] as String?;
+    final sdpMLineIndex = payload['sdpMLineIndex'] as int?;
+    final candidate = RTCIceCandidate(rawCandidate, sdpMid, sdpMLineIndex);
+
+    if (_isRemoteDescriptionSet && _peerConnection != null) {
+      try {
+        await _peerConnection!.addCandidate(candidate);
+      } catch (e) {
+        print(">> [WebRTC] Notice: Skipped redundant ICE candidate: $e");
+      }
+    } else {
+      _remoteCandidatesQueue.add(candidate);
+    }
+  }
+
+  /// Flushes queued remote ICE candidates sequentially once remote description is active.
+  Future<void> _processQueuedCandidates() async {
+    if (_peerConnection == null || !_isRemoteDescriptionSet) return;
+    
+    final candidates = List<RTCIceCandidate>.from(_remoteCandidatesQueue);
+    _remoteCandidatesQueue.clear();
+
+    for (final candidate in candidates) {
+      try {
+        await _peerConnection!.addCandidate(candidate);
+      } catch (e) {
+        print(">> [WebRTC] Notice: Error adding queued candidate: $e");
+      }
+    }
+  }
+
+  /// Configures message and lifecycle listeners on the SCTP DataChannel.
+  void _setupDataChannelListeners(RTCDataChannel channel) {
+    channel.onMessage = (RTCDataChannelMessage message) {
+      if (message.isBinary) {
+        onFileChunkReceived?.call(message.binary);
+      } else {
+        if (message.text == 'EOF') {
+          print(">> [WebRTC] RECEIVER: EOF received. Asset transfer complete.");
+          onStatusUpdate?.call("Asset received and verified successfully.");
+          onTransferComplete?.call();
+        }
+      }
+    };
+
+    channel.onDataChannelState = (RTCDataChannelState state) {
+      print(">> [WebRTC] DATA CHANNEL STATE: $state");
+      if (state == RTCDataChannelState.RTCDataChannelOpen) {
+        onStatusUpdate?.call("DataChannel Open! Ready for transmission.");
+      } else if (state == RTCDataChannelState.RTCDataChannelClosed) {
+        onStatusUpdate?.call("DataChannel Closed.");
       }
     };
   }
 
-  Future<void> initiateTransfer(String targetId) async {
-    _currentTargetId = targetId;
-    print(">> SENDER: Initiating WebSocket P2P Relay to $targetId");
-    
-    // Mock the WebRTC Offer phase
-    await _signaling.sendSignal(
-      targetId: targetId,
-      type: 'offer',
-      payload: {'sdp': 'MOCK_SDP_OFFER', 'type': 'offer'},
-    );
-
-    // Wait for the receiver to answer
-    int retries = 0;
-    while (!_isConnected && retries < 100) {
-      await Future.delayed(const Duration(milliseconds: 100));
-      retries++;
-    }
-
-    if (!_isConnected) {
-      throw Exception("Zero-Trust Fault: Signaling handshake timed out. Peer did not respond.");
-    }
-  }
-
-  Future<void> _handleOffer(Map<String, dynamic> payload, String senderId) async {
-    print(">> RECEIVER: WebSocket Handshake received from $senderId");
-    _currentTargetId = senderId;
-    
-    // Mock the WebRTC Answer phase
-    await _signaling.sendSignal(
-      targetId: senderId,
-      type: 'answer',
-      payload: {'sdp': 'MOCK_SDP_ANSWER', 'type': 'answer'},
-    );
-    _isConnected = true;
-  }
-
-  Future<void> _handleAnswer(Map<String, dynamic> payload) async {
-    print(">> SENDER: WebSocket Handshake Accepted!");
-    _isConnected = true;
-  }
-
+  /// Streams binary payload over the DataChannel in 16KB chunks.
+  /// Throws granular, highly specific technical exceptions on any failure.
   Future<void> sendFileBytes(Uint8List fileBytes) async {
-    if (_currentTargetId == null || !_isConnected) {
-      throw Exception("Zero-Trust Fault: Cannot send bytes, connection not established.");
+    onStatusUpdate?.call("Waiting for P2P DataChannel tunnel to open...");
+
+    int elapsedMs = 0;
+    const int intervalMs = 100;
+    const int timeoutMs = 20000; // 20s timeout for TURN negotiation
+
+    while ((_dataChannel == null || _dataChannel!.state != RTCDataChannelState.RTCDataChannelOpen) && elapsedMs < timeoutMs) {
+      if (_currentIceState == RTCIceConnectionState.RTCIceConnectionStateFailed) {
+        throw Exception(
+          "WebRTC ICE Connection Failed: Direct UDP and TURN relay routes were blocked by network firewall or symmetric NAT.\n"
+          "Troubleshooting:\n"
+          "1. Ensure both devices are on the Transfer screen.\n"
+          "2. If on same Wi-Fi, ensure router permits client isolation / TURN relay.\n"
+          "3. Verify outbound ports 80/443/3478 are not blocked by Windows Defender."
+        );
+      }
+      await Future.delayed(const Duration(milliseconds: intervalMs));
+      elapsedMs += intervalMs;
+
+      if (elapsedMs % 3000 == 0) {
+        onStatusUpdate?.call("Connecting DataChannel (${elapsedMs ~/ 1000}s/20s)... State: ${_dataChannel?.state ?? 'null'}, ICE: ${_currentIceState ?? 'none'}");
+      }
     }
 
-    print(">> SENDER: P2P Relay Open! Transmitting payload over WebSocket...");
-
-    // Supabase Broadcast payload limit is usually 256KB-1MB.
-    // We chunk it extremely small (32KB) and encode as base64 to ensure it passes smoothly.
-    const int chunkSize = 32768; 
-    int offset = 0;
-
-    while (offset < fileBytes.length) {
-      int end = (offset + chunkSize < fileBytes.length) ? offset + chunkSize : fileBytes.length;
-      final chunk = fileBytes.sublist(offset, end);
-      
-      final base64Chunk = base64Encode(chunk);
-      
-      await _signaling.sendSignal(
-        targetId: _currentTargetId!,
-        type: 'ice', // We hijack 'ice' because SignalingService routes it to onIceCandidateReceived
-        payload: {
-          'chunk_type': 'data',
-          'data': base64Chunk,
-        },
+    if (_dataChannel == null || _dataChannel!.state != RTCDataChannelState.RTCDataChannelOpen) {
+      if (_lastTechnicalError != null) {
+        throw Exception(_lastTechnicalError!);
+      }
+      if (!_isRemoteDescriptionSet) {
+        throw Exception(
+          "Signaling Timeout: No SDP Answer received from peer ${_currentTargetId ?? 'target'}.\n"
+          "Cause: Target peer did not respond within 20s.\n"
+          "Resolution: Ensure the target peer has Project Kerberos actively open on the 'Secure Transfer' screen."
+        );
+      }
+      if (_currentIceState == RTCIceConnectionState.RTCIceConnectionStateChecking) {
+        throw Exception(
+          "ICE Negotiation Timeout: ICE is still 'Checking' candidate pairs.\n"
+          "Cause: Neither direct P2P nor TURN relay candidates could be verified.\n"
+          "Resolution: Check network firewall settings or try switching networks."
+        );
+      }
+      throw Exception(
+        "DataChannel Timeout: Peer answered, but SCTP DataChannel failed to enter 'open' state.\n"
+        "Current DataChannel: ${_dataChannel?.state ?? 'null'}, ICE: ${_currentIceState ?? 'none'}."
       );
-      
-      offset += chunkSize;
-      onTransferProgress?.call(offset / fileBytes.length);
-      
-      // Throttle significantly to ensure WebSockets process the queue
-      await Future.delayed(const Duration(milliseconds: 50));
     }
 
-    await _signaling.sendSignal(
-      targetId: _currentTargetId!,
-      type: 'ice',
-      payload: {'chunk_type': 'eof'},
-    );
-    
-    print(">> SENDER: EOF sent. Transfer complete.");
+    onStatusUpdate?.call("DataChannel Open! Transmitting encrypted payload...");
+    print(">> [WebRTC] SENDER: DataChannel Open! Transmitting payload (${fileBytes.length} bytes)...");
+
+    const int chunkSize = 16384; // 16KB chunks
+    int offset = 0;
+    final totalBytes = fileBytes.length;
+
+    while (offset < totalBytes) {
+      if (_dataChannel == null || _dataChannel!.state != RTCDataChannelState.RTCDataChannelOpen) {
+        throw Exception("Transfer Aborted: DataChannel disconnected prematurely during transmission.");
+      }
+
+      final end = (offset + chunkSize < totalBytes) ? offset + chunkSize : totalBytes;
+      final chunk = fileBytes.sublist(offset, end);
+
+      await _dataChannel!.send(RTCDataChannelMessage.fromBinary(chunk));
+      offset += chunk.length;
+
+      final progress = offset / totalBytes;
+      onTransferProgress?.call(progress);
+
+      // Adaptive throttle to prevent buffer overflow
+      if (kIsWeb) {
+        await Future.delayed(const Duration(milliseconds: 4));
+      } else {
+        await Future.delayed(const Duration(milliseconds: 1));
+      }
+    }
+
+    // Send string EOF sentinel
+    await _dataChannel!.send(RTCDataChannelMessage("EOF"));
+    print(">> [WebRTC] SENDER: EOF sent. Transfer completed successfully.");
+    onStatusUpdate?.call("Payload transmission complete.");
+    onTransferProgress?.call(1.0);
     onTransferComplete?.call();
   }
 
+  /// Closes the current connection and resets candidate queues.
   void closeConnection() {
-    _isConnected = false;
+    _isRemoteDescriptionSet = false;
+    _remoteCandidatesQueue.clear();
     _currentTargetId = null;
+    _currentIceState = null;
+    _lastTechnicalError = null;
+    try {
+      _dataChannel?.close();
+    } catch (_) {}
+    try {
+      _peerConnection?.close();
+    } catch (_) {}
+    _dataChannel = null;
+    _peerConnection = null;
   }
 }

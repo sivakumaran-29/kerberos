@@ -1,4 +1,3 @@
-import 'dart:typed_data';
 import 'package:cross_file/cross_file.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -11,7 +10,7 @@ import '../../../main.dart'; // for ledgerProvider
 
 part 'network_providers.g.dart';
 
-@riverpod
+@Riverpod(keepAlive: true)
 SignalingService signalingService(SignalingServiceRef ref) {
   // On Vercel (Web), generate a fresh UUID so every visitor is a unique peer.
   // On Native (Windows), strictly use the air-gapped .env identity.
@@ -42,12 +41,32 @@ class DiscoveredPeersNotifier extends _$DiscoveredPeersNotifier {
   }
 }
 
-@riverpod
+@Riverpod(keepAlive: true)
 WebRTCService webRtcService(WebRtcServiceRef ref) {
   final signaling = ref.watch(signalingServiceProvider);
   final service = WebRTCService(signaling);
   ref.onDispose(() => service.closeConnection());
   return service;
+}
+
+@Riverpod(keepAlive: true)
+class TransferStatusNotifier extends _$TransferStatusNotifier {
+  @override
+  String build() {
+    final webrtc = ref.watch(webRtcServiceProvider);
+    webrtc.onStatusUpdate = (status) {
+      state = status;
+    };
+    return 'STANDBY // READY FOR P2P HANDSHAKE';
+  }
+
+  void updateStatus(String status) {
+    state = status;
+  }
+
+  void reset() {
+    state = 'STANDBY // READY FOR P2P HANDSHAKE';
+  }
 }
 
 @riverpod
@@ -57,46 +76,59 @@ class TransferProgressNotifier extends _$TransferProgressNotifier {
     return const AsyncValue.data(0.0);
   }
 
+  void reset() {
+    final webrtc = ref.read(webRtcServiceProvider);
+    webrtc.closeConnection();
+    ref.read(transferStatusNotifierProvider.notifier).reset();
+    state = const AsyncValue.data(0.0);
+  }
+
   void startTransfer(String targetId) async {
     state = const AsyncValue.loading();
+    final webrtc = ref.read(webRtcServiceProvider);
+    final statusNotifier = ref.read(transferStatusNotifierProvider.notifier);
+
     try {
       final ledger = ref.read(ledgerProvider);
       final record = ledger.getLatestRecord();
       
-      // 2. Read the binary payload from disk (Cross-platform safe)
+      // 1. Read binary payload from disk (Cross-platform safe)
       Uint8List fileBytes;
       if (record == null) {
-        // HACKATHON FALLBACK: If they haven't uploaded an asset yet, send a mock payload
-        // to demonstrate the P2P tunnel rather than crashing.
-        fileBytes = Uint8List.fromList([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+        // Fallback: If no asset is sealed yet, send a 1KB mock payload
+        fileBytes = Uint8List.fromList(List.generate(1024, (i) => i % 256));
       } else {
         try {
           final file = XFile(record.filePath);
           fileBytes = await file.readAsBytes();
         } catch (e) {
-          // Fallback for Web/Vercel (Mock payload since browsers lack file paths)
           fileBytes = Uint8List.fromList(List.generate(1024, (i) => i % 256));
         }
       }
 
-      // 3. Bind WebRTC tracking
-      final webrtc = ref.read(webRtcServiceProvider);
+      // 2. Bind WebRTC tracking callbacks
+      webrtc.onStatusUpdate = (status) {
+        statusNotifier.updateStatus(status);
+      };
+
       webrtc.onTransferProgress = (progress) {
         state = AsyncValue.data(progress);
       };
       
       webrtc.onTransferComplete = () {
         state = const AsyncValue.data(1.0); // 100%
+        statusNotifier.updateStatus('TRANSFER COMPLETE [100%]');
       };
 
-      // 4. Initiate the real signaling handshake
+      // 3. Initiate pure WebRTC signaling handshake
+      statusNotifier.updateStatus('Dispatching SDP Offer to target peer...');
       await webrtc.initiateTransfer(targetId);
       
-      // 5. Stream the exact bytes over the DTLS tunnel
+      // 4. Stream bytes over the encrypted DTLS/SCTP DataChannel
       await webrtc.sendFileBytes(fileBytes);
       
     } catch (e, st) {
-      // SILENT INTEGRITY PROTOCOL ACTIVE
+      statusNotifier.updateStatus('HANDSHAKE FAULT: ${e.toString().replaceFirst(RegExp(r'^Exception:\s*'), '')}');
       state = AsyncValue.error(e, st);
     }
   }

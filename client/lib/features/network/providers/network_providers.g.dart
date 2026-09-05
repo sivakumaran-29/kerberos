@@ -6,11 +6,11 @@ part of 'network_providers.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$signalingServiceHash() => r'b27ae392b8e26563a182c394e2cda528d0d08e3b';
+String _$signalingServiceHash() => r'38869398ff5c97ecb5d482590632547d469d584f';
 
 /// See also [signalingService].
 @ProviderFor(signalingService)
-final signalingServiceProvider = AutoDisposeProvider<SignalingService>.internal(
+final signalingServiceProvider = Provider<SignalingService>.internal(
   signalingService,
   name: r'signalingServiceProvider',
   debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
@@ -20,12 +20,12 @@ final signalingServiceProvider = AutoDisposeProvider<SignalingService>.internal(
   allTransitiveDependencies: null,
 );
 
-typedef SignalingServiceRef = AutoDisposeProviderRef<SignalingService>;
-String _$webRtcServiceHash() => r'2a4592e97485e4ce31a5f91d8452e4ada332d7cf';
+typedef SignalingServiceRef = ProviderRef<SignalingService>;
+String _$webRtcServiceHash() => r'fd80b20c702d0c340a9d8a01f128c1f827c3ae99';
 
 /// See also [webRtcService].
 @ProviderFor(webRtcService)
-final webRtcServiceProvider = AutoDisposeProvider<WebRTCService>.internal(
+final webRtcServiceProvider = Provider<WebRTCService>.internal(
   webRtcService,
   name: r'webRtcServiceProvider',
   debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
@@ -35,7 +35,7 @@ final webRtcServiceProvider = AutoDisposeProvider<WebRTCService>.internal(
   allTransitiveDependencies: null,
 );
 
-typedef WebRtcServiceRef = AutoDisposeProviderRef<WebRTCService>;
+typedef WebRtcServiceRef = ProviderRef<WebRTCService>;
 String _$discoveredPeersNotifierHash() =>
     r'1f65170788dd4ec31fcd992ddfb862f35d0933ef';
 
@@ -54,8 +54,25 @@ final discoveredPeersNotifierProvider = AutoDisposeNotifierProvider<
 
 typedef _$DiscoveredPeersNotifier
     = AutoDisposeNotifier<List<Map<String, dynamic>>>;
+String _$transferStatusNotifierHash() =>
+    r'ed28ea340275eda461a2bcc8a794813bbce4cb58';
+
+/// See also [TransferStatusNotifier].
+@ProviderFor(TransferStatusNotifier)
+final transferStatusNotifierProvider =
+    NotifierProvider<TransferStatusNotifier, String>.internal(
+  TransferStatusNotifier.new,
+  name: r'transferStatusNotifierProvider',
+  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+      ? null
+      : _$transferStatusNotifierHash,
+  dependencies: null,
+  allTransitiveDependencies: null,
+);
+
+typedef _$TransferStatusNotifier = Notifier<String>;
 String _$transferProgressNotifierHash() =>
-    r'0df1db53fb2005e9c3210245def9b29b6430cd6c';
+    r'08165d57da7a69eed51d3c731a0bb4a9033f7e3d';
 
 /// See also [TransferProgressNotifier].
 @ProviderFor(TransferProgressNotifier)
