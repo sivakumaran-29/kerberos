@@ -218,33 +218,157 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
     );
   }
 
-  Widget _buildNavLink(String title, ActiveDeckModal modal) {
-    final isActive = _activeModal == modal;
-    return InkWell(
-      onTap: () {
-        setState(() {
-          _activeModal = isActive ? ActiveDeckModal.none : modal;
-        });
-      },
-      borderRadius: BorderRadius.circular(24),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 7),
-        decoration: BoxDecoration(
-          color: isActive ? CyberTheme.accentColor.withValues(alpha: 0.28) : Colors.transparent,
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(
-            color: isActive ? CyberTheme.borderAccent : Colors.transparent,
-            width: 1.2,
+  int get _activeNavIndex {
+    switch (_activeModal) {
+      case ActiveDeckModal.none:
+        return 0; // Home
+      case ActiveDeckModal.studio:
+        return 1; // Studio
+      case ActiveDeckModal.radar:
+        return 2; // Radar
+      case ActiveDeckModal.ledger:
+        return 3; // Ledger
+    }
+  }
+
+  // ==========================================
+  // ANIMATED SLIDING NAV SEGMENTED CONTROL
+  // ==========================================
+  Widget _buildNavSegmentedControl() {
+    const double tabWidth = 82.0;
+    const double tabHeight = 34.0;
+
+    return Container(
+      padding: const EdgeInsets.all(3.5),
+      decoration: BoxDecoration(
+        color: const Color(0x18FFFFFF), // Frosted white track
+        borderRadius: BorderRadius.circular(100),
+        border: Border.all(color: const Color(0x33FFFFFF), width: 1.0),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x22000000),
+            blurRadius: 10,
+            offset: Offset(0, 2),
           ),
+        ],
+      ),
+      child: SizedBox(
+        width: tabWidth * 4,
+        height: tabHeight,
+        child: Stack(
+          children: [
+            // 1. Animated Sliding Indicator Pill & Bottom Glow Bar
+            AnimatedPositioned(
+              duration: const Duration(milliseconds: 320),
+              curve: Curves.easeOutCubic,
+              left: _activeNavIndex * tabWidth,
+              top: 0,
+              width: tabWidth,
+              height: tabHeight,
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      Color(0x52FFFFFF), // Crisp frosted white highlight
+                      Color(0x22FFFFFF),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(100),
+                  border: Border.all(
+                    color: const Color(0x8CFFFFFF),
+                    width: 1.2,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.white.withValues(alpha: 0.25),
+                      blurRadius: 12,
+                      spreadRadius: 0,
+                    ),
+                    BoxShadow(
+                      color: CyberTheme.accentColor.withValues(alpha: 0.38),
+                      blurRadius: 16,
+                      spreadRadius: 1,
+                    ),
+                  ],
+                ),
+                // Luminous bottom accent bar
+                child: Align(
+                  alignment: Alignment.bottomCenter,
+                  child: Container(
+                    margin: const EdgeInsets.only(bottom: 2.5),
+                    width: 24,
+                    height: 2.2,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(10),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.white.withValues(alpha: 0.95),
+                          blurRadius: 6,
+                          spreadRadius: 1,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+
+            // 2. Interactive Navigation Options (Home, Studio, Radar, Ledger)
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _buildNavTabItem(
+                  'Home',
+                  0,
+                  () => setState(() => _activeModal = ActiveDeckModal.none),
+                ),
+                _buildNavTabItem(
+                  'Studio',
+                  1,
+                  () => setState(() => _activeModal = ActiveDeckModal.studio),
+                ),
+                _buildNavTabItem(
+                  'Radar',
+                  2,
+                  () => setState(() => _activeModal = ActiveDeckModal.radar),
+                ),
+                _buildNavTabItem(
+                  'Ledger',
+                  3,
+                  () => setState(() => _activeModal = ActiveDeckModal.ledger),
+                ),
+              ],
+            ),
+          ],
         ),
-        child: Text(
-          title,
-          style: GoogleFonts.plusJakartaSans(
-            color: isActive ? Colors.white : CyberTheme.textSecondary,
-            fontSize: 13,
-            fontWeight: isActive ? FontWeight.w800 : FontWeight.w600,
-            letterSpacing: 0.3,
+      ),
+    );
+  }
+
+  Widget _buildNavTabItem(String title, int index, VoidCallback onTap) {
+    final isActive = _activeNavIndex == index;
+    return SizedBox(
+      width: 82.0,
+      height: 34.0,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(100),
+          onTap: onTap,
+          child: Center(
+            child: AnimatedDefaultTextStyle(
+              duration: const Duration(milliseconds: 200),
+              style: GoogleFonts.plusJakartaSans(
+                color: isActive ? Colors.white : const Color(0xCCE2E8F0),
+                fontSize: 13,
+                fontWeight: isActive ? FontWeight.w800 : FontWeight.w600,
+                letterSpacing: 0.3,
+              ),
+              child: Text(title),
+            ),
           ),
         ),
       ),
@@ -257,29 +381,39 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
   Widget _buildFloatingNavbar(UserProfile profile) {
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xDD0F091E),
+        // Premium White Frosted Transparency Sheen
+        color: const Color(0x1AFFFFFF),
         borderRadius: BorderRadius.circular(100),
-        border: Border.all(color: const Color(0x38FFFFFF), width: 1.2),
+        border: Border.all(
+          color: const Color(0x4DFFFFFF), // Frosted luminous white rim
+          width: 1.2,
+        ),
         boxShadow: [
           BoxShadow(
-            color: CyberTheme.accentColor.withValues(alpha: 0.28),
-            blurRadius: 30,
+            color: Colors.white.withValues(alpha: 0.15),
+            blurRadius: 28,
             spreadRadius: -2,
+            offset: const Offset(0, 2),
+          ),
+          BoxShadow(
+            color: CyberTheme.accentColor.withValues(alpha: 0.22),
+            blurRadius: 36,
+            spreadRadius: 2,
             offset: const Offset(0, 8),
           ),
           const BoxShadow(
             color: Color(0x99000000),
-            blurRadius: 24,
-            offset: Offset(0, 4),
+            blurRadius: 32,
+            offset: Offset(0, 6),
           ),
         ],
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(100),
         child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+          filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
             child: Row(
               children: [
                 // Left: Logo & Brand (React Bits / Project Kerberos)
@@ -337,17 +471,10 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
                   ),
                 ),
 
-                // Center: Navigation Links (Cleanly Centered)
+                // Center: Animated Sliding Navigation Segmented Control
                 Expanded(
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      _buildNavLink('Studio', ActiveDeckModal.studio),
-                      const SizedBox(width: 10),
-                      _buildNavLink('Radar', ActiveDeckModal.radar),
-                      const SizedBox(width: 10),
-                      _buildNavLink('Ledger', ActiveDeckModal.ledger),
-                    ],
+                  child: Center(
+                    child: _buildNavSegmentedControl(),
                   ),
                 ),
 
