@@ -11,6 +11,7 @@ echo ">>> Injecting Environment Variables..."
 echo "SUPABASE_URL=$SUPABASE_URL" > .env
 echo "SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY" >> .env
 echo "DEVICE_UUID=web-agent" >> .env
+echo "HIVE_ENCRYPTION_KEY_BASE64=MTIzNDU2Nzg5MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTI=" >> .env
 
 echo ">>> Getting Packages..."
 flutter pub get
