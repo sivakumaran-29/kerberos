@@ -153,12 +153,12 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
           SafeArea(
             child: Column(
               children: [
-                // Floating Glass Navbar (Aesthetic capsule style)
+                // Floating Glass Navbar (Aesthetic capsule style, perfectly proportioned)
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
                   child: Center(
                     child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 1200),
+                      constraints: const BoxConstraints(maxWidth: 920),
                       child: _buildFloatingNavbar(userProfile),
                     ),
                   ),
@@ -167,52 +167,33 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
                 // Floating Incoming Transfer Alert Banner
                 if (incomingRequest != null)
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 6),
                     child: Center(
                       child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 900),
+                        constraints: const BoxConstraints(maxWidth: 920),
                         child: _buildIncomingTransferBanner(incomingRequest),
                       ),
                     ),
                   ),
 
-                // Clean Centered Hero Quote (Landing Page with Quote Alone)
+                // Dedicated Separate Page View (Home, Studio, Radar, Ledger)
                 Expanded(
-                  child: Center(
-                    child: SingleChildScrollView(
-                      controller: _scrollController,
-                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 920),
-                        child: _buildHeroSection(),
-                      ),
-                    ),
-                  ),
-                ),
-
-                // Minimal Clean Footer
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                  child: Center(
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 1300),
-                      child: _buildFooter(),
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 240),
+                    switchInCurve: Curves.easeOutCubic,
+                    switchOutCurve: Curves.easeInCubic,
+                    child: _buildActivePage(
+                      provenanceState: provenanceState,
+                      peers: peers,
+                      activeStatus: activeStatus,
+                      progressState: progressState,
+                      incomingRequest: incomingRequest,
                     ),
                   ),
                 ),
               ],
             ),
           ),
-
-          // 3. Functional Modal Deck Overlay (Opened from Navbar or CTA Buttons)
-          if (_activeModal != ActiveDeckModal.none)
-            _buildActiveModalOverlay(
-              provenanceState: provenanceState,
-              peers: peers,
-              activeStatus: activeStatus,
-              progressState: progressState,
-              incomingRequest: incomingRequest,
-            ),
         ],
       ),
     );
@@ -235,22 +216,15 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
   // ANIMATED SLIDING NAV SEGMENTED CONTROL
   // ==========================================
   Widget _buildNavSegmentedControl() {
-    const double tabWidth = 82.0;
+    const double tabWidth = 84.0;
     const double tabHeight = 34.0;
 
     return Container(
-      padding: const EdgeInsets.all(3.5),
+      padding: const EdgeInsets.all(3.0),
       decoration: BoxDecoration(
-        color: const Color(0x18FFFFFF), // Frosted white track
+        color: const Color(0x0EFFFFFF), // Sleek subtle frosted track
         borderRadius: BorderRadius.circular(100),
-        border: Border.all(color: const Color(0x33FFFFFF), width: 1.0),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x22000000),
-            blurRadius: 10,
-            offset: Offset(0, 2),
-          ),
-        ],
+        border: Border.all(color: const Color(0x20FFFFFF), width: 1.0),
       ),
       child: SizedBox(
         width: tabWidth * 4,
@@ -259,7 +233,7 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
           children: [
             // 1. Animated Sliding Indicator Pill & Bottom Glow Bar
             AnimatedPositioned(
-              duration: const Duration(milliseconds: 320),
+              duration: const Duration(milliseconds: 300),
               curve: Curves.easeOutCubic,
               left: _activeNavIndex * tabWidth,
               top: 0,
@@ -267,47 +241,34 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
               height: tabHeight,
               child: Container(
                 decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      Color(0x52FFFFFF), // Crisp frosted white highlight
-                      Color(0x22FFFFFF),
-                    ],
-                  ),
+                  color: const Color(0x28FFFFFF), // Clean frosted white pill
                   borderRadius: BorderRadius.circular(100),
                   border: Border.all(
-                    color: const Color(0x8CFFFFFF),
-                    width: 1.2,
+                    color: const Color(0x55FFFFFF),
+                    width: 1.0,
                   ),
-                  boxShadow: [
+                  boxShadow: const [
                     BoxShadow(
-                      color: Colors.white.withValues(alpha: 0.25),
-                      blurRadius: 12,
-                      spreadRadius: 0,
-                    ),
-                    BoxShadow(
-                      color: CyberTheme.accentColor.withValues(alpha: 0.38),
-                      blurRadius: 16,
-                      spreadRadius: 1,
+                      color: Color(0x20000000),
+                      blurRadius: 6,
+                      offset: Offset(0, 2),
                     ),
                   ],
                 ),
-                // Luminous bottom accent bar
+                // Crisp bottom accent bar (refined theme amethyst micro-indicator)
                 child: Align(
                   alignment: Alignment.bottomCenter,
                   child: Container(
                     margin: const EdgeInsets.only(bottom: 2.5),
-                    width: 24,
-                    height: 2.2,
+                    width: 20,
+                    height: 2.0,
                     decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(10),
-                      boxShadow: [
+                      color: const Color(0xFFC084FC),
+                      borderRadius: BorderRadius.circular(2),
+                      boxShadow: const [
                         BoxShadow(
-                          color: Colors.white.withValues(alpha: 0.95),
-                          blurRadius: 6,
-                          spreadRadius: 1,
+                          color: Color(0x80C084FC),
+                          blurRadius: 4,
                         ),
                       ],
                     ),
@@ -351,7 +312,7 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
   Widget _buildNavTabItem(String title, int index, VoidCallback onTap) {
     final isActive = _activeNavIndex == index;
     return SizedBox(
-      width: 82.0,
+      width: 84.0,
       height: 34.0,
       child: Material(
         color: Colors.transparent,
@@ -360,12 +321,12 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
           onTap: onTap,
           child: Center(
             child: AnimatedDefaultTextStyle(
-              duration: const Duration(milliseconds: 200),
+              duration: const Duration(milliseconds: 180),
               style: GoogleFonts.plusJakartaSans(
-                color: isActive ? Colors.white : const Color(0xCCE2E8F0),
+                color: isActive ? Colors.white : const Color(0x99FFFFFF),
                 fontSize: 13,
-                fontWeight: isActive ? FontWeight.w800 : FontWeight.w600,
-                letterSpacing: 0.3,
+                fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
+                letterSpacing: 0.2,
               ),
               child: Text(title),
             ),
@@ -382,38 +343,31 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
     return Container(
       decoration: BoxDecoration(
         // Premium White Frosted Transparency Sheen
-        color: const Color(0x1AFFFFFF),
+        color: const Color(0x14FFFFFF),
         borderRadius: BorderRadius.circular(100),
         border: Border.all(
-          color: const Color(0x4DFFFFFF), // Frosted luminous white rim
-          width: 1.2,
+          color: const Color(0x2EFFFFFF), // Crisp frosted white rim
+          width: 1.0,
         ),
-        boxShadow: [
+        boxShadow: const [
           BoxShadow(
-            color: Colors.white.withValues(alpha: 0.15),
-            blurRadius: 28,
-            spreadRadius: -2,
-            offset: const Offset(0, 2),
+            color: Color(0x66000000),
+            blurRadius: 24,
+            offset: Offset(0, 8),
           ),
           BoxShadow(
-            color: CyberTheme.accentColor.withValues(alpha: 0.22),
-            blurRadius: 36,
-            spreadRadius: 2,
-            offset: const Offset(0, 8),
-          ),
-          const BoxShadow(
-            color: Color(0x99000000),
-            blurRadius: 32,
-            offset: Offset(0, 6),
+            color: Color(0x14FFFFFF),
+            blurRadius: 1,
+            spreadRadius: 0,
           ),
         ],
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(100),
         child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+          filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
             child: Row(
               children: [
                 // Left: Logo & Brand (React Bits / Project Kerberos)
@@ -696,19 +650,48 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
         ),
         const SizedBox(height: 32),
 
-        // Bold Crisp Modern Sans Headline (The Hero Quote Alone)
-        Text(
-          "Don't touch them, they are pretty sharp!\nHardware-Sealed Digital Originals.",
+        // Bold Crisp Modern Sans Headline with Theme-Highlighted Words
+        Text.rich(
+          TextSpan(
+            children: [
+              const TextSpan(text: "Don't touch them, they are "),
+              TextSpan(
+                text: "pretty sharp!\n",
+                style: TextStyle(
+                  color: const Color(0xFFC084FC), // Vibrant electric amethyst highlight
+                  shadows: [
+                    Shadow(
+                      color: const Color(0xFFA855F7).withValues(alpha: 0.75),
+                      blurRadius: 28,
+                    ),
+                  ],
+                ),
+              ),
+              TextSpan(
+                text: "Hardware-Sealed ",
+                style: TextStyle(
+                  color: const Color(0xFFA78BFA), // Cyber lavender theme highlight
+                  shadows: [
+                    Shadow(
+                      color: const Color(0xFF8B5CF6).withValues(alpha: 0.65),
+                      blurRadius: 24,
+                    ),
+                  ],
+                ),
+              ),
+              const TextSpan(text: "Digital Originals."),
+            ],
+          ),
           textAlign: TextAlign.center,
           style: GoogleFonts.plusJakartaSans(
-            fontSize: 46,
+            fontSize: 48,
             fontWeight: FontWeight.w900,
             letterSpacing: -1.4,
             color: Colors.white,
-            height: 1.15,
+            height: 1.16,
             shadows: [
               Shadow(
-                color: CyberTheme.accentColor.withValues(alpha: 0.6),
+                color: CyberTheme.accentColor.withValues(alpha: 0.4),
                 blurRadius: 36,
               ),
             ],
@@ -716,11 +699,63 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
         ),
         const SizedBox(height: 20),
 
-        // Subtitle
+        // Subtitle with Theme-Highlighted Concepts
         ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 720),
-          child: Text(
-            'Interactive 3D Prismatic Shards protecting true digital originals. Seal assets with C2PA hardware manifests, extract perceptual hash vectors, and stream encrypted payloads directly between peers over WebRTC DTLS tunnels.',
+          constraints: const BoxConstraints(maxWidth: 740),
+          child: Text.rich(
+            TextSpan(
+              children: [
+                const TextSpan(text: 'Interactive '),
+                const TextSpan(
+                  text: '3D Prismatic Shards',
+                  style: TextStyle(
+                    color: Color(0xFFE9D5FF),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const TextSpan(text: ' protecting true '),
+                const TextSpan(
+                  text: 'digital originals',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const TextSpan(text: '. Seal assets with '),
+                const TextSpan(
+                  text: 'C2PA hardware manifests',
+                  style: TextStyle(
+                    color: Color(0xFFC084FC),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const TextSpan(text: ', extract '),
+                const TextSpan(
+                  text: 'perceptual hash vectors',
+                  style: TextStyle(
+                    color: Color(0xFFA78BFA),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const TextSpan(text: ', and stream '),
+                const TextSpan(
+                  text: 'encrypted payloads',
+                  style: TextStyle(
+                    color: Color(0xFF818CF8),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const TextSpan(text: ' directly between peers over '),
+                const TextSpan(
+                  text: 'WebRTC DTLS tunnels',
+                  style: TextStyle(
+                    color: Color(0xFF67E8F9),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const TextSpan(text: '.'),
+              ],
+            ),
             textAlign: TextAlign.center,
             style: GoogleFonts.plusJakartaSans(
               fontSize: 15,
@@ -809,123 +844,161 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
   }
 
   // ==========================================
-  // FUNCTIONAL MODAL DECK OVERLAY
+  // DEDICATED SEPARATE PAGES UNDER NAVBAR
   // ==========================================
-  Widget _buildActiveModalOverlay({
+  Widget _buildActivePage({
     required AsyncValue<dynamic> provenanceState,
     required List<Map<String, dynamic>> peers,
     required String activeStatus,
     required AsyncValue<double> progressState,
     required IncomingTransferRequest? incomingRequest,
   }) {
-    Widget content;
-    String title;
-    IconData icon;
-    String badge;
-
     switch (_activeModal) {
-      case ActiveDeckModal.studio:
-        title = 'PROVENANCE STUDIO';
-        icon = Icons.fingerprint;
-        badge = 'C2PA SEED & MANIFEST';
-        content = _buildProvenanceStudio(provenanceState);
-        break;
-      case ActiveDeckModal.radar:
-        title = 'ENCLAVE RADAR';
-        icon = Icons.wifi_tethering;
-        badge = 'WEBRTC DTLS 1.3 / SCTP';
-        content = _buildSecureTransferRadar(
-          peers: peers,
-          activeStatus: activeStatus,
-          progressState: progressState,
-          incomingRequest: incomingRequest,
-        );
-        break;
-      case ActiveDeckModal.ledger:
-        title = 'IMMUTABLE ZERO-TRUST LEDGER';
-        icon = Icons.lock_clock;
-        badge = 'CRYPTOGRAPHIC AUDIT TRAIL';
-        content = _buildLedgerAuditTrail();
-        break;
       case ActiveDeckModal.none:
-        return const SizedBox.shrink();
-    }
-
-    return Positioned.fill(
-      child: Stack(
-        children: [
-          // Backdrop Blur & Dismissal Tap
-          Positioned.fill(
-            child: GestureDetector(
-              onTap: () => setState(() => _activeModal = ActiveDeckModal.none),
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-                child: Container(
-                  color: const Color(0xCC080410),
+        return KeyedSubtree(
+          key: const ValueKey('page_home'),
+          child: Column(
+            children: [
+              Expanded(
+                child: Center(
+                  child: SingleChildScrollView(
+                    controller: _scrollController,
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 920),
+                      child: _buildHeroSection(),
+                    ),
+                  ),
                 ),
               ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 1100),
+                    child: _buildFooter(),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+
+      case ActiveDeckModal.studio:
+        return KeyedSubtree(
+          key: const ValueKey('page_studio'),
+          child: _buildPageLayout(
+            title: 'PROVENANCE STUDIO',
+            icon: Icons.fingerprint,
+            badge: 'C2PA SEED & HARDWARE MANIFEST',
+            description:
+                'Ingest digital originals, bind immutable C2PA hardware manifests, and extract perceptual cryptographic hash matrices.',
+            child: _buildProvenanceStudio(provenanceState),
+          ),
+        );
+
+      case ActiveDeckModal.radar:
+        return KeyedSubtree(
+          key: const ValueKey('page_radar'),
+          child: _buildPageLayout(
+            title: 'ENCLAVE RADAR',
+            icon: Icons.wifi_tethering,
+            badge: 'WEBRTC DTLS 1.3 / SCTP P2P',
+            description:
+                'Peer-to-peer AirDrop discovery mesh. Stream hardware-sealed assets directly between nodes without intermediary cloud storage.',
+            child: _buildSecureTransferRadar(
+              peers: peers,
+              activeStatus: activeStatus,
+              progressState: progressState,
+              incomingRequest: incomingRequest,
             ),
           ),
+        );
 
-          // Centered Floating Modal Card
-          Center(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
-              child: ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxWidth: 1080,
-                  maxHeight: MediaQuery.of(context).size.height * 0.88,
+      case ActiveDeckModal.ledger:
+        return KeyedSubtree(
+          key: const ValueKey('page_ledger'),
+          child: _buildPageLayout(
+            title: 'IMMUTABLE ZERO-TRUST LEDGER',
+            icon: Icons.lock_clock,
+            badge: 'CRYPTOGRAPHIC AUDIT TRAIL',
+            description:
+                'Cryptographic tamper-evident provenance block history, verifying asset signature validity, perceptual hashes, and peer transmission logs.',
+            child: _buildLedgerAuditTrail(),
+          ),
+        );
+    }
+  }
+
+  Widget _buildPageLayout({
+    required String title,
+    required IconData icon,
+    required String badge,
+    required String description,
+    required Widget child,
+  }) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1120),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Page Header Bar
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 16),
+                margin: const EdgeInsets.only(bottom: 20),
+                decoration: BoxDecoration(
+                  color: const Color(0x14FFFFFF),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: const Color(0x28FFFFFF), width: 1.0),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Color(0x40000000),
+                      blurRadius: 20,
+                      offset: Offset(0, 6),
+                    ),
+                  ],
                 ),
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: CyberTheme.surfaceElevated.withValues(alpha: 0.96),
-                    borderRadius: BorderRadius.circular(24),
-                    border: Border.all(color: CyberTheme.borderAccent, width: 1.5),
-                    boxShadow: [
-                      BoxShadow(
-                        color: CyberTheme.accentColor.withValues(alpha: 0.35),
-                        blurRadius: 36,
-                        spreadRadius: 4,
-                      ),
-                    ],
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(24),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        // Modal Header Bar
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
-                          decoration: const BoxDecoration(
-                            color: Color(0x44000000),
-                            border: Border(bottom: BorderSide(color: CyberTheme.border)),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 42,
+                      height: 42,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: CyberTheme.shardGradient,
+                        boxShadow: [
+                          BoxShadow(
+                            color: CyberTheme.accentColor.withValues(alpha: 0.4),
+                            blurRadius: 14,
                           ),
-                          child: Row(
+                        ],
+                      ),
+                      child: Icon(icon, color: Colors.white, size: 20),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
                             children: [
-                              Container(
-                                padding: const EdgeInsets.all(7),
-                                decoration: const BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  gradient: CyberTheme.shardGradient,
-                                ),
-                                child: Icon(icon, color: Colors.white, size: 16),
-                              ),
-                              const SizedBox(width: 12),
                               Text(
                                 title,
                                 style: GoogleFonts.plusJakartaSans(
-                                  color: CyberTheme.textPrimary,
-                                  fontSize: 14,
+                                  color: Colors.white,
+                                  fontSize: 15,
                                   fontWeight: FontWeight.w800,
-                                  letterSpacing: 0.8,
+                                  letterSpacing: 0.5,
                                 ),
                               ),
                               const SizedBox(width: 10),
                               Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2.5),
                                 decoration: BoxDecoration(
-                                  color: CyberTheme.accentColor.withValues(alpha: 0.2),
+                                  color: CyberTheme.accentColor.withValues(alpha: 0.22),
                                   borderRadius: BorderRadius.circular(100),
                                   border: Border.all(color: CyberTheme.borderAccent),
                                 ),
@@ -935,46 +1008,71 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
                                     color: const Color(0xFFC084FC),
                                     fontSize: 9,
                                     fontWeight: FontWeight.w700,
+                                    letterSpacing: 0.5,
                                   ),
-                                ),
-                              ),
-                              const Spacer(),
-                              // Close (X) Button
-                              InkWell(
-                                onTap: () => setState(() => _activeModal = ActiveDeckModal.none),
-                                borderRadius: BorderRadius.circular(100),
-                                child: Container(
-                                  padding: const EdgeInsets.all(6),
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    color: CyberTheme.surface,
-                                    border: Border.all(color: CyberTheme.borderBright),
-                                  ),
-                                  child: const Icon(Icons.close_rounded, color: CyberTheme.textPrimary, size: 18),
                                 ),
                               ),
                             ],
                           ),
-                        ),
-
-                        // Scrollable Modal Body
-                        Flexible(
-                          child: SingleChildScrollView(
-                            padding: const EdgeInsets.all(22),
-                            child: content,
+                          const SizedBox(height: 4),
+                          Text(
+                            description,
+                            style: GoogleFonts.plusJakartaSans(
+                              color: CyberTheme.textSecondary,
+                              fontSize: 12,
+                              height: 1.4,
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
+                    const SizedBox(width: 16),
+                    // Back to Home Button
+                    InkWell(
+                      onTap: () => setState(() => _activeModal = ActiveDeckModal.none),
+                      borderRadius: BorderRadius.circular(100),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                        decoration: BoxDecoration(
+                          color: const Color(0x18FFFFFF),
+                          borderRadius: BorderRadius.circular(100),
+                          border: Border.all(color: const Color(0x33FFFFFF)),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.arrow_back_rounded, size: 14, color: Colors.white),
+                            const SizedBox(width: 6),
+                            Text(
+                              'Home',
+                              style: GoogleFonts.plusJakartaSans(
+                                color: Colors.white,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ),
+
+              // Embedded Page Content Card
+              child,
+
+              const SizedBox(height: 32),
+
+              // Page Footer
+              _buildFooter(),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
+
 
 
   // ==========================================
