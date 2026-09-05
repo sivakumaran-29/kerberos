@@ -803,7 +803,7 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
   Widget _buildHomePage() {
     return SingleChildScrollView(
       controller: _scrollController,
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+      padding: const EdgeInsets.only(left: 24, right: 24, top: 46, bottom: 36),
       child: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 1100),
@@ -811,8 +811,13 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               _buildHeroSection(),
-              const SizedBox(height: 20),
-              _buildParallelDownloadBoxes(),
+              const SizedBox(height: 24),
+              Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 820),
+                  child: _buildParallelDownloadBoxes(),
+                ),
+              ),
               const SizedBox(height: 80),
               _buildApplicationExplainerSection(),
               const SizedBox(height: 56),
@@ -829,17 +834,16 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
   Widget _buildParallelDownloadBoxes() {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final isDesktop = constraints.maxWidth >= 780;
-        final isCompact = constraints.maxWidth < 920;
+        final isDesktop = constraints.maxWidth >= 640;
 
         final windowsCard = _buildDownloadCard(
-          title: 'Windows Desktop Client',
-          subtitle: 'TPM 2.0 root-of-trust C2PA sealing & DTLS 1.3 P2P node',
+          title: 'Windows Client',
+          subtitle: 'TPM 2.0 C2PA seal & DTLS 1.3 node',
           badge: 'WIN 10/11 • x64',
           badgeColor: const Color(0xFF38BDF8),
           icon: Icons.desktop_windows_rounded,
           iconColor: const Color(0xFF38BDF8),
-          buttonText: isCompact ? 'Download' : 'Download for Windows',
+          buttonText: 'Download',
           onDownload: () {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
@@ -886,13 +890,13 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
         );
 
         final mobileCard = _buildDownloadCard(
-          title: 'Mobile Phone Companion',
-          subtitle: 'Camera manifest seal, radar mesh & local ledger sync',
+          title: 'Mobile Companion',
+          subtitle: 'Camera manifest seal & radar mesh',
           badge: 'ANDROID & iOS',
           badgeColor: const Color(0xFF34D399),
           icon: Icons.smartphone_rounded,
           iconColor: const Color(0xFF34D399),
-          buttonText: isCompact ? 'Download' : 'Download for Mobile',
+          buttonText: 'Download',
           onDownload: () {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
