@@ -7,6 +7,9 @@ class WebRTCService {
   final SignalingService _signaling;
   RTCPeerConnection? _peerConnection;
   RTCDataChannel? _dataChannel;
+  
+  final List<RTCIceCandidate> _remoteCandidatesQueue = [];
+  bool _isRemoteDescriptionSet = false;
 
   Function(Uint8List data)? onFileChunkReceived;
   Function()? onTransferComplete;
@@ -25,6 +28,8 @@ class WebRTCService {
   };
 
   Future<void> _initializeConnection(String targetId) async {
+    _isRemoteDescriptionSet = false;
+    _remoteCandidatesQueue.clear();
     _peerConnection = await createPeerConnection(_configuration);
 
     _peerConnection!.onIceCandidate = (RTCIceCandidate candidate) {
@@ -69,6 +74,9 @@ class WebRTCService {
     await _initializeConnection(senderId);
     final offer = RTCSessionDescription(payload['sdp'], payload['type']);
     await _peerConnection!.setRemoteDescription(offer);
+    _isRemoteDescriptionSet = true;
+    _processQueuedCandidates();
+    
     final answer = await _peerConnection!.createAnswer();
     await _peerConnection!.setLocalDescription(answer);
     await _signaling.sendSignal(
@@ -81,11 +89,24 @@ class WebRTCService {
   Future<void> _handleAnswer(Map<String, dynamic> payload) async {
     final answer = RTCSessionDescription(payload['sdp'], payload['type']);
     await _peerConnection!.setRemoteDescription(answer);
+    _isRemoteDescriptionSet = true;
+    _processQueuedCandidates();
   }
 
   Future<void> _handleIceCandidate(Map<String, dynamic> payload) async {
     final candidate = RTCIceCandidate(payload['candidate'], payload['sdpMid'], payload['sdpMLineIndex']);
-    await _peerConnection!.addCandidate(candidate);
+    if (_isRemoteDescriptionSet && _peerConnection != null) {
+      await _peerConnection!.addCandidate(candidate);
+    } else {
+      _remoteCandidatesQueue.add(candidate);
+    }
+  }
+
+  void _processQueuedCandidates() {
+    for (var candidate in _remoteCandidatesQueue) {
+      _peerConnection?.addCandidate(candidate);
+    }
+    _remoteCandidatesQueue.clear();
   }
 
   void _setupDataChannelListeners() {
@@ -134,6 +155,8 @@ class WebRTCService {
   }
 
   void closeConnection() {
+    _isRemoteDescriptionSet = false;
+    _remoteCandidatesQueue.clear();
     _dataChannel?.close();
     _peerConnection?.close();
   }
