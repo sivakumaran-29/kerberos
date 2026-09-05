@@ -22,7 +22,6 @@ enum ActiveDeckModal {
   studio,
   radar,
   ledger,
-  specs,
 }
 
 class WorkspaceScreen extends ConsumerStatefulWidget {
@@ -104,40 +103,12 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
     }
   }
 
-  Widget _buildSpecRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(
-            label,
-            style: GoogleFonts.plusJakartaSans(
-              color: CyberTheme.textMuted,
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          Text(
-            value,
-            style: GoogleFonts.jetBrainsMono(
-              color: CyberTheme.textPrimary,
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final userProfile = ref.watch(userProfileProvider);
     final provenanceState = ref.watch(provenanceTaskNotifierProvider);
     final activeStatus = ref.watch(transferStatusNotifierProvider);
     final progressState = ref.watch(transferProgressNotifierProvider);
-    final autoAccept = ref.watch(autoAcceptNotifierProvider);
     final incomingRequest = ref.watch(incomingTransferNotifierProvider);
     final peers = ref.watch(discoveredPeersNotifierProvider);
     final webrtc = ref.watch(webRtcServiceProvider);
@@ -182,13 +153,13 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
           SafeArea(
             child: Column(
               children: [
-                // Floating Glass Navbar (React Bits style)
+                // Floating Glass Navbar (Aesthetic capsule style)
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
                   child: Center(
                     child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 1300),
-                      child: _buildFloatingNavbar(userProfile, peers.length, autoAccept),
+                      constraints: const BoxConstraints(maxWidth: 1200),
+                      child: _buildFloatingNavbar(userProfile),
                     ),
                   ),
                 ),
@@ -255,16 +226,16 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
           _activeModal = isActive ? ActiveDeckModal.none : modal;
         });
       },
-      borderRadius: BorderRadius.circular(20),
+      borderRadius: BorderRadius.circular(24),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 7),
         decoration: BoxDecoration(
           color: isActive ? CyberTheme.accentColor.withValues(alpha: 0.28) : Colors.transparent,
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(24),
           border: Border.all(
             color: isActive ? CyberTheme.borderAccent : Colors.transparent,
-            width: 1,
+            width: 1.2,
           ),
         ),
         child: Text(
@@ -281,203 +252,177 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
   }
 
   // ==========================================
-  // FLOATING GLASS NAVBAR (REACT BITS STYLE)
+  // FLOATING GLASS NAVBAR (AESTHETIC CAPSULE)
   // ==========================================
-  Widget _buildFloatingNavbar(UserProfile profile, int activePeersCount, bool autoAccept) {
-    return GlassContainer(
-      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-      borderRadius: 100,
-      showSheen: true,
-      borderColor: CyberTheme.border,
-      child: Row(
-        children: [
-          // Logo & Brand (React Bits / Project Kerberos)
-          InkWell(
-            onTap: () => setState(() => _activeModal = ActiveDeckModal.none),
-            borderRadius: BorderRadius.circular(100),
+  Widget _buildFloatingNavbar(UserProfile profile) {
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xDD0F091E),
+        borderRadius: BorderRadius.circular(100),
+        border: Border.all(color: const Color(0x38FFFFFF), width: 1.2),
+        boxShadow: [
+          BoxShadow(
+            color: CyberTheme.accentColor.withValues(alpha: 0.28),
+            blurRadius: 30,
+            spreadRadius: -2,
+            offset: const Offset(0, 8),
+          ),
+          const BoxShadow(
+            color: Color(0x99000000),
+            blurRadius: 24,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(100),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
             child: Row(
-              mainAxisSize: MainAxisSize.min,
               children: [
-                Container(
-                  width: 32,
-                  height: 32,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: CyberTheme.shardGradient,
-                    boxShadow: [
-                      BoxShadow(
-                        color: CyberTheme.accentColor.withValues(alpha: 0.45),
-                        blurRadius: 12,
-                        spreadRadius: 1,
+                // Left: Logo & Brand (React Bits / Project Kerberos)
+                InkWell(
+                  onTap: () => setState(() => _activeModal = ActiveDeckModal.none),
+                  borderRadius: BorderRadius.circular(100),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 34,
+                        height: 34,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: CyberTheme.shardGradient,
+                          boxShadow: [
+                            BoxShadow(
+                              color: CyberTheme.accentColor.withValues(alpha: 0.5),
+                              blurRadius: 14,
+                              spreadRadius: 1,
+                            ),
+                          ],
+                        ),
+                        child: const Icon(Icons.all_inclusive_rounded, color: Colors.white, size: 20),
+                      ),
+                      const SizedBox(width: 10),
+                      Text(
+                        'React Bits',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.2,
+                          color: CyberTheme.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(width: 7),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+                        decoration: BoxDecoration(
+                          color: CyberTheme.accentColor.withValues(alpha: 0.25),
+                          borderRadius: BorderRadius.circular(100),
+                          border: Border.all(color: CyberTheme.borderAccent),
+                        ),
+                        child: Text(
+                          'KERBEROS',
+                          style: GoogleFonts.jetBrainsMono(
+                            fontSize: 8.5,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 0.8,
+                            color: const Color(0xFFC084FC),
+                          ),
+                        ),
                       ),
                     ],
                   ),
-                  child: const Icon(Icons.all_inclusive_rounded, color: Colors.white, size: 18),
                 ),
-                const SizedBox(width: 10),
-                Text(
-                  'React Bits',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.2,
-                    color: CyberTheme.textPrimary,
+
+                // Center: Navigation Links (Cleanly Centered)
+                Expanded(
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      _buildNavLink('Studio', ActiveDeckModal.studio),
+                      const SizedBox(width: 10),
+                      _buildNavLink('Radar', ActiveDeckModal.radar),
+                      const SizedBox(width: 10),
+                      _buildNavLink('Ledger', ActiveDeckModal.ledger),
+                    ],
                   ),
                 ),
-                const SizedBox(width: 6),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: CyberTheme.accentColor.withValues(alpha: 0.22),
-                    borderRadius: BorderRadius.circular(100),
-                    border: Border.all(color: CyberTheme.borderAccent),
-                  ),
-                  child: Text(
-                    'KERBEROS',
-                    style: GoogleFonts.jetBrainsMono(
-                      fontSize: 8,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 0.8,
-                      color: const Color(0xFFC084FC),
+
+                // Right: User Profile Avatar Logo (no full name) & Sign out
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Aesthetic User Avatar Logo with Tooltip
+                    Tooltip(
+                      message: '${profile.displayName}\n${profile.email}',
+                      textStyle: GoogleFonts.plusJakartaSans(fontSize: 11, color: Colors.white),
+                      decoration: BoxDecoration(
+                        color: CyberTheme.surfaceElevated,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: CyberTheme.borderAccent),
+                      ),
+                      child: Container(
+                        width: 34,
+                        height: 34,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFFC084FC), Color(0xFF7C3AED)],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: CyberTheme.accentColor.withValues(alpha: 0.35),
+                              blurRadius: 10,
+                              spreadRadius: 1,
+                            ),
+                          ],
+                        ),
+                        padding: const EdgeInsets.all(1.5),
+                        child: Container(
+                          decoration: const BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Color(0xFF160F2B),
+                          ),
+                          child: Center(
+                            child: Text(
+                              profile.initials,
+                              style: GoogleFonts.plusJakartaSans(
+                                color: const Color(0xFFE9D5FF),
+                                fontSize: 11,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
-                ),
-              ],
-            ),
-          ),
+                    const SizedBox(width: 12),
 
-          const SizedBox(width: 16),
-
-          // Center Navigation Links (Each triggers its functional modal deck)
-          Expanded(
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                _buildNavLink('Studio', ActiveDeckModal.studio),
-                const SizedBox(width: 8),
-                _buildNavLink('Radar', ActiveDeckModal.radar),
-                const SizedBox(width: 8),
-                _buildNavLink('Ledger', ActiveDeckModal.ledger),
-                const SizedBox(width: 8),
-                _buildNavLink('Wind Specs', ActiveDeckModal.specs),
-              ],
-            ),
-          ),
-
-          // Telemetry Peer Counter
-          InkWell(
-            onTap: () => setState(() => _activeModal = ActiveDeckModal.radar),
-            borderRadius: BorderRadius.circular(100),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-              decoration: BoxDecoration(
-                color: CyberTheme.surfaceElevated,
-                borderRadius: BorderRadius.circular(100),
-                border: Border.all(color: CyberTheme.border),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.wifi_tethering, size: 12, color: CyberTheme.cyan),
-                  const SizedBox(width: 5),
-                  Text(
-                    '$activePeersCount ONLINE',
-                    style: GoogleFonts.jetBrainsMono(
-                      fontSize: 9,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 0.6,
-                      color: CyberTheme.textPrimary,
+                    // Solid White Pill Button (React Bits Navbar Right CTA)
+                    CyberButton(
+                      variant: CyberButtonVariant.whitePill,
+                      height: 34,
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      onTap: _confirmSignOut,
+                      child: Text(
+                        'Sign out',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 12,
+                        ),
+                      ),
                     ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-
-          // Auto-Accept Toggle Pill
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-            decoration: BoxDecoration(
-              color: autoAccept ? CyberTheme.emerald.withValues(alpha: 0.18) : CyberTheme.surfaceElevated,
-              borderRadius: BorderRadius.circular(100),
-              border: Border.all(color: autoAccept ? CyberTheme.borderEmerald : CyberTheme.border),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  autoAccept ? 'AUTO: ON' : 'AUTO: OFF',
-                  style: GoogleFonts.jetBrainsMono(
-                    fontSize: 9,
-                    fontWeight: FontWeight.w700,
-                    color: autoAccept ? CyberTheme.emerald : CyberTheme.textMuted,
-                  ),
-                ),
-                const SizedBox(width: 4),
-                SizedBox(
-                  height: 16,
-                  width: 28,
-                  child: Switch.adaptive(
-                    value: autoAccept,
-                    activeThumbColor: CyberTheme.emerald,
-                    onChanged: (val) => ref.read(autoAcceptNotifierProvider.notifier).set(val),
-                  ),
+                  ],
                 ),
               ],
             ),
           ),
-          const SizedBox(width: 10),
-
-          // User Profile Pill
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-            decoration: BoxDecoration(
-              color: CyberTheme.surfaceElevated,
-              borderRadius: BorderRadius.circular(100),
-              border: Border.all(color: CyberTheme.border),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                CircleAvatar(
-                  radius: 10,
-                  backgroundColor: CyberTheme.accentColor.withValues(alpha: 0.3),
-                  child: Text(
-                    profile.initials,
-                    style: GoogleFonts.plusJakartaSans(
-                      color: const Color(0xFFC084FC),
-                      fontSize: 9,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  profile.displayName,
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: CyberTheme.textPrimary,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 10),
-
-          // Solid White Pill Button (React Bits Navbar Right CTA)
-          CyberButton(
-            variant: CyberButtonVariant.whitePill,
-            height: 32,
-            padding: const EdgeInsets.symmetric(horizontal: 14),
-            onTap: _confirmSignOut,
-            child: Text(
-              'Sign out',
-              style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -700,7 +645,6 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
             _buildQuickActionBadge('Studio // Ingest & Seal', Icons.fingerprint, () => setState(() => _activeModal = ActiveDeckModal.studio)),
             _buildQuickActionBadge('Radar // P2P AirDrop', Icons.wifi_tethering, () => setState(() => _activeModal = ActiveDeckModal.radar)),
             _buildQuickActionBadge('Ledger // Audit Trail', Icons.lock_clock, () => setState(() => _activeModal = ActiveDeckModal.ledger)),
-            _buildQuickActionBadge('Specs // 3D Sculpture', Icons.tune, () => setState(() => _activeModal = ActiveDeckModal.specs)),
           ],
         ),
       ],
@@ -775,12 +719,6 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
         icon = Icons.lock_clock;
         badge = 'CRYPTOGRAPHIC AUDIT TRAIL';
         content = _buildLedgerAuditTrail();
-        break;
-      case ActiveDeckModal.specs:
-        title = 'WIND SCULPTURE SPECS';
-        icon = Icons.tune;
-        badge = 'STATIC 3D PRISMATIC';
-        content = _buildSpecsModalContent();
         break;
       case ActiveDeckModal.none:
         return const SizedBox.shrink();
@@ -911,43 +849,6 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
     );
   }
 
-  Widget _buildSpecsModalContent() {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'WIND SCULPTURE // STATIC 3D PRISMATIC SHARDS',
-          style: GoogleFonts.plusJakartaSans(
-            fontSize: 13,
-            fontWeight: FontWeight.w800,
-            color: CyberTheme.shardColor,
-            letterSpacing: 0.8,
-          ),
-        ),
-        const SizedBox(height: 16),
-        _buildSpecRow('Geometry', 'Static Faceted Diamond Prisms'),
-        _buildSpecRow('Total Facets', '110 Crystalline Shards'),
-        _buildSpecRow('Stream Path', 'Golden-Ratio Flow Stream'),
-        _buildSpecRow('Chromatic Aberration', 'Dual-Pass Neon Cyan & Ruby Magenta'),
-        _buildSpecRow('Backdrop Aura', 'Deep Velvet Obsidian (#0C0814) + Radiant Amethyst (#7C3AED)'),
-        _buildSpecRow('Color Palette', 'Electric Orchid (#C084FC) / Saturated Purple (#A855F7)'),
-        _buildSpecRow('Provenance Engine', 'ED25519 C2PA Manifest & Perceptual Hash'),
-        _buildSpecRow('P2P Protocol', 'WebRTC DTLS 1.3 / SCTP DataChannels'),
-        const SizedBox(height: 24),
-        Align(
-          alignment: Alignment.centerRight,
-          child: CyberButton(
-            variant: CyberButtonVariant.whitePill,
-            height: 36,
-            padding: const EdgeInsets.symmetric(horizontal: 22),
-            onTap: () => setState(() => _activeModal = ActiveDeckModal.none),
-            child: const Text('Close'),
-          ),
-        ),
-      ],
-    );
-  }
 
   // ==========================================
   // BENTO CARD 1: PROVENANCE STUDIO (INGEST & SEAL)
