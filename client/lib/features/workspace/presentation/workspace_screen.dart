@@ -9,6 +9,7 @@ import 'package:cross_file/cross_file.dart';
 import '../../../shared/theme/cyber_theme.dart';
 import '../../../shared/widgets/glass_container.dart';
 import '../../../shared/widgets/cyber_button.dart';
+import '../../../shared/widgets/shards_background.dart';
 import '../../auth/providers/auth_providers.dart';
 import '../../provenance/providers/provenance_providers.dart';
 import '../../network/providers/network_providers.dart';
@@ -23,6 +24,7 @@ class WorkspaceScreen extends ConsumerStatefulWidget {
 
 class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTickerProviderStateMixin {
   final TextEditingController _targetController = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
   bool _isDragging = false;
   double _receiverProgress = 0.0;
   bool _isReceiving = false;
@@ -40,8 +42,108 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
   @override
   void dispose() {
     _targetController.dispose();
+    _scrollController.dispose();
     _pulseController.dispose();
     super.dispose();
+  }
+
+  void _scrollToSection(double offset) {
+    if (_scrollController.hasClients) {
+      _scrollController.animateTo(
+        offset,
+        duration: const Duration(milliseconds: 600),
+        curve: Curves.easeOutCubic,
+      );
+    }
+  }
+
+  Future<void> _confirmSignOut() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: CyberTheme.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('End Enclave Session?', style: TextStyle(color: CyberTheme.textPrimary)),
+        content: const Text('You will be signed out of this Kerberos node.', style: TextStyle(color: CyberTheme.textSecondary)),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('CANCEL')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('SIGN OUT', style: TextStyle(color: CyberTheme.coral, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+    if (confirm == true) {
+      await ref.read(authServiceProvider).signOut();
+    }
+  }
+
+  void _showSpecsDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: CyberTheme.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: const BorderSide(color: CyberTheme.borderAccent),
+        ),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: const BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: CyberTheme.shardGradient,
+              ),
+              child: const Icon(Icons.tune, color: Colors.white, size: 16),
+            ),
+            const SizedBox(width: 10),
+            const Text(
+              'Wind Sculpture Specs',
+              style: TextStyle(color: CyberTheme.textPrimary, fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildSpecRow('Flow', 'stream'),
+            _buildSpecRow('Material', 'pearl'),
+            _buildSpecRow('Detail', 'balanced'),
+            _buildSpecRow('Interaction', 'repel'),
+            _buildSpecRow('Chromatic Aberration', '0.0075 (Cyan / Coral)'),
+            const Divider(color: CyberTheme.border, height: 20),
+            _buildSpecRow('Background Color', '#120F17'),
+            _buildSpecRow('Shard Color', '#896ABD'),
+            _buildSpecRow('Accent Color', '#A855F7'),
+          ],
+        ),
+        actions: [
+          CyberButton(
+            variant: CyberButtonVariant.whitePill,
+            height: 34,
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            onTap: () => Navigator.pop(ctx),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSpecRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: const TextStyle(color: CyberTheme.textMuted, fontSize: 12)),
+          Text(value, style: const TextStyle(color: CyberTheme.textPrimary, fontSize: 12, fontFamily: 'monospace', fontWeight: FontWeight.w700)),
+        ],
+      ),
+    );
   }
 
   @override
@@ -86,19 +188,22 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
       backgroundColor: CyberTheme.background,
       body: Stack(
         children: [
-          // 1. Ambient Aurora Lighting Backdrop
-          _buildAuroraBackdrop(),
+          // 1. 3D Prismatic Shards ("Wind Sculpture") Interactive Engine
+          const Positioned.fill(
+            child: ShardsBackground(),
+          ),
 
           // 2. Scrollable Page Content
           SafeArea(
             child: SingleChildScrollView(
+              controller: _scrollController,
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
               child: Center(
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 1300),
                   child: Column(
                     children: [
-                      // Floating Glass Navbar
+                      // Floating Glass Navbar (React Bits style)
                       _buildFloatingNavbar(userProfile, peers.length, autoAccept),
                       const SizedBox(height: 36),
 
@@ -165,165 +270,103 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
     );
   }
 
-  // ==========================================
-  // AURORA LIGHTING BACKDROP
-  // ==========================================
-  Widget _buildAuroraBackdrop() {
-    return Positioned.fill(
-      child: IgnorePointer(
-        child: Stack(
-          children: [
-            // Top Center Cyan Glow
-            Positioned(
-              top: -150,
-              left: MediaQuery.of(context).size.width * 0.25,
-              child: Container(
-                width: 600,
-                height: 450,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: RadialGradient(
-                    colors: [
-                      CyberTheme.cyan.withValues(alpha: 0.12),
-                      CyberTheme.cyan.withValues(alpha: 0.04),
-                      Colors.transparent,
-                    ],
-                  ),
-                ),
-              ),
-            ),
-            // Top Right Violet Glow
-            Positioned(
-              top: -100,
-              right: -100,
-              child: Container(
-                width: 500,
-                height: 500,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: RadialGradient(
-                    colors: [
-                      CyberTheme.indigo.withValues(alpha: 0.10),
-                      Colors.transparent,
-                    ],
-                  ),
-                ),
-              ),
-            ),
-            // Bottom Left Emerald Glow
-            Positioned(
-              bottom: 100,
-              left: -100,
-              child: Container(
-                width: 450,
-                height: 450,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: RadialGradient(
-                    colors: [
-                      CyberTheme.emerald.withValues(alpha: 0.08),
-                      Colors.transparent,
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ],
+  Widget _buildNavLink(String title, VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(20),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        child: Text(
+          title,
+          style: const TextStyle(
+            color: CyberTheme.textSecondary,
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0.2,
+          ),
         ),
       ),
     );
   }
 
   // ==========================================
-  // FLOATING GLASS NAVBAR
+  // FLOATING GLASS NAVBAR (REACT BITS STYLE)
   // ==========================================
   Widget _buildFloatingNavbar(UserProfile profile, int activePeersCount, bool autoAccept) {
     return GlassContainer(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
       borderRadius: 100,
       showSheen: true,
       borderColor: CyberTheme.border,
       child: Row(
         children: [
-          // Logo & Brand
+          // Logo & Brand (React Bits / Project Kerberos)
           Container(
-            width: 34,
-            height: 34,
+            width: 32,
+            height: 32,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              gradient: CyberTheme.primaryGradient,
+              gradient: CyberTheme.shardGradient,
               boxShadow: [
                 BoxShadow(
-                  color: CyberTheme.cyan.withValues(alpha: 0.35),
-                  blurRadius: 12,
+                  color: CyberTheme.accentColor.withValues(alpha: 0.4),
+                  blurRadius: 10,
                   spreadRadius: 1,
                 ),
               ],
             ),
-            child: const Icon(Icons.shield_outlined, color: Colors.white, size: 18),
+            child: const Icon(Icons.all_inclusive_rounded, color: Colors.white, size: 18),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 10),
           const Text(
-            'KERBEROS',
+            'React Bits',
             style: TextStyle(
               fontSize: 14,
-              fontWeight: FontWeight.w900,
-              letterSpacing: 2.0,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.2,
               color: CyberTheme.textPrimary,
             ),
           ),
-          const SizedBox(width: 10),
-
-          // Enclave Active Status Pill
+          const SizedBox(width: 6),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
             decoration: BoxDecoration(
-              color: CyberTheme.emerald.withValues(alpha: 0.12),
+              color: CyberTheme.accentColor.withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(100),
-              border: Border.all(color: CyberTheme.borderEmerald),
+              border: Border.all(color: CyberTheme.borderAccent),
             ),
+            child: const Text(
+              'KERBEROS',
+              style: TextStyle(
+                fontSize: 8,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 0.8,
+                color: Color(0xFFC084FC),
+              ),
+            ),
+          ),
+
+          const SizedBox(width: 16),
+
+          // Center Navigation Links (Matching Screenshot 1)
+          Expanded(
             child: Row(
-              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                AnimatedBuilder(
-                  animation: _pulseController,
-                  builder: (context, child) {
-                    return Container(
-                      width: 6,
-                      height: 6,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: CyberTheme.emerald,
-                        boxShadow: [
-                          BoxShadow(
-                            color: CyberTheme.emerald.withValues(alpha: 0.4 + (_pulseController.value * 0.4)),
-                            blurRadius: 6,
-                            spreadRadius: 1,
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
-                const SizedBox(width: 6),
-                const Text(
-                  'ZERO-TRUST ACTIVE',
-                  style: TextStyle(
-                    fontSize: 9,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.8,
-                    color: CyberTheme.emerald,
-                  ),
-                ),
+                _buildNavLink('Studio', () => _scrollToSection(220)),
+                const SizedBox(width: 14),
+                _buildNavLink('Radar', () => _scrollToSection(600)),
+                const SizedBox(width: 14),
+                _buildNavLink('Ledger', () => _scrollToSection(950)),
+                const SizedBox(width: 14),
+                _buildNavLink('Wind Specs', _showSpecsDialog),
               ],
             ),
           ),
 
-          const Spacer(),
-
           // Telemetry Peer Counter
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
             decoration: BoxDecoration(
               color: CyberTheme.surfaceElevated,
               borderRadius: BorderRadius.circular(100),
@@ -332,25 +375,25 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.wifi_tethering, size: 13, color: CyberTheme.cyan),
-                const SizedBox(width: 6),
+                const Icon(Icons.wifi_tethering, size: 12, color: CyberTheme.cyan),
+                const SizedBox(width: 5),
                 Text(
                   '$activePeersCount ONLINE',
                   style: const TextStyle(
-                    fontSize: 10,
+                    fontSize: 9,
                     fontWeight: FontWeight.w800,
-                    letterSpacing: 0.8,
+                    letterSpacing: 0.6,
                     color: CyberTheme.textPrimary,
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 8),
 
           // Auto-Accept Toggle Pill
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
             decoration: BoxDecoration(
               color: autoAccept ? CyberTheme.emerald.withValues(alpha: 0.15) : CyberTheme.surfaceElevated,
               borderRadius: BorderRadius.circular(100),
@@ -360,17 +403,17 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  autoAccept ? 'AUTO-ACCEPT: ON' : 'AUTO-ACCEPT: OFF',
+                  autoAccept ? 'AUTO: ON' : 'AUTO: OFF',
                   style: TextStyle(
                     fontSize: 9,
                     fontWeight: FontWeight.w700,
                     color: autoAccept ? CyberTheme.emerald : CyberTheme.textMuted,
                   ),
                 ),
-                const SizedBox(width: 6),
+                const SizedBox(width: 4),
                 SizedBox(
-                  height: 18,
-                  width: 32,
+                  height: 16,
+                  width: 28,
                   child: Switch.adaptive(
                     value: autoAccept,
                     activeThumbColor: CyberTheme.emerald,
@@ -380,11 +423,11 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
               ],
             ),
           ),
-          const SizedBox(width: 14),
+          const SizedBox(width: 10),
 
           // User Profile Pill
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
             decoration: BoxDecoration(
               color: CyberTheme.surfaceElevated,
               borderRadius: BorderRadius.circular(100),
@@ -394,56 +437,38 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
               mainAxisSize: MainAxisSize.min,
               children: [
                 CircleAvatar(
-                  radius: 12,
-                  backgroundColor: CyberTheme.cyan.withValues(alpha: 0.2),
+                  radius: 10,
+                  backgroundColor: CyberTheme.accentColor.withValues(alpha: 0.3),
                   child: Text(
                     profile.initials,
                     style: const TextStyle(
-                      color: CyberTheme.cyan,
-                      fontSize: 10,
+                      color: Color(0xFFC084FC),
+                      fontSize: 9,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 6),
                 Text(
                   profile.displayName,
                   style: const TextStyle(
-                    fontSize: 12,
+                    fontSize: 11,
                     fontWeight: FontWeight.w700,
                     color: CyberTheme.textPrimary,
                   ),
                 ),
-                const SizedBox(width: 10),
-                InkWell(
-                  onTap: () async {
-                    final confirm = await showDialog<bool>(
-                      context: context,
-                      builder: (ctx) => AlertDialog(
-                        backgroundColor: CyberTheme.surface,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                        title: const Text('End Enclave Session?', style: TextStyle(color: CyberTheme.textPrimary)),
-                        content: const Text('You will be signed out of this Kerberos node.', style: TextStyle(color: CyberTheme.textSecondary)),
-                        actions: [
-                          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('CANCEL')),
-                          TextButton(
-                            onPressed: () => Navigator.pop(ctx, true),
-                            child: const Text('SIGN OUT', style: TextStyle(color: CyberTheme.coral, fontWeight: FontWeight.bold)),
-                          ),
-                        ],
-                      ),
-                    );
-                    if (confirm == true) {
-                      await ref.read(authServiceProvider).signOut();
-                    }
-                  },
-                  child: const Padding(
-                    padding: EdgeInsets.all(2.0),
-                    child: Icon(Icons.logout, size: 14, color: CyberTheme.textMuted),
-                  ),
-                ),
               ],
             ),
+          ),
+          const SizedBox(width: 10),
+
+          // Solid White Pill Button (React Bits Navbar Right CTA)
+          CyberButton(
+            variant: CyberButtonVariant.whitePill,
+            height: 32,
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            onTap: _confirmSignOut,
+            child: const Text('Sign out'),
           ),
         ],
       ),
@@ -451,56 +476,64 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
   }
 
   // ==========================================
-  // DRIBBLE AI SAAS HERO SECTION
+  // HERO SECTION (REACT BITS STYLE)
   // ==========================================
   Widget _buildHeroSection() {
     return Column(
       children: [
-        // Announcement Badge Pill
+        // Announcement Badge Pill (Matching Screenshot 1)
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
           decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [
-                CyberTheme.cyan.withValues(alpha: 0.12),
-                CyberTheme.indigo.withValues(alpha: 0.12),
-              ],
-            ),
+            color: const Color(0x22A855F7),
             borderRadius: BorderRadius.circular(100),
-            border: Border.all(color: CyberTheme.borderCyan),
+            border: Border.all(color: const Color(0x44A855F7)),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.auto_awesome, size: 14, color: CyberTheme.cyanLight),
-              const SizedBox(width: 8),
-              Text(
-                'NEXT-GEN DIGITAL PROVENANCE & ZERO-CLOUD AIRDROP',
-                style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 1.0,
-                  color: CyberTheme.cyanLight,
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(100),
+                ),
+                child: const Text(
+                  'NEW',
+                  style: TextStyle(
+                    color: Color(0xFF120F17),
+                    fontSize: 9,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 0.5,
+                  ),
                 ),
               ),
+              const SizedBox(width: 9),
+              const Text(
+                'Creative Components // Digital Provenance',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFFE2E8F0),
+                ),
+              ),
+              const SizedBox(width: 6),
+              const Icon(Icons.arrow_forward_ios, size: 9, color: CyberTheme.textMuted),
             ],
           ),
         ),
-        const SizedBox(height: 18),
+        const SizedBox(height: 20),
 
-        // Iridescent Metallic Headline
-        ShaderMask(
-          shaderCallback: (bounds) => CyberTheme.heroTextGradient.createShader(bounds),
-          child: const Text(
-            'The Decentralized Vault for\nTrue Digital Originals.',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 38,
-              fontWeight: FontWeight.w900,
-              letterSpacing: -0.8,
-              color: Colors.white,
-              height: 1.15,
-            ),
+        // Bold Crisp Modern Sans Headline (Matching Screenshot 1)
+        const Text(
+          "Don't touch them, they are pretty sharp!\nHardware-Sealed Digital Originals.",
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 40,
+            fontWeight: FontWeight.w900,
+            letterSpacing: -1.0,
+            color: Colors.white,
+            height: 1.16,
           ),
         ),
         const SizedBox(height: 14),
@@ -509,7 +542,7 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
         ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 720),
           child: const Text(
-            'Seal digital assets with C2PA hardware manifests, extract perceptual hash vectors, and stream encrypted payloads directly between peers over WebRTC DTLS tunnels.',
+            'Interactive 3D Prismatic Shards protecting true digital originals. Seal assets with C2PA hardware manifests, extract perceptual hash vectors, and stream encrypted payloads directly between peers over WebRTC DTLS tunnels.',
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 14,
@@ -518,6 +551,31 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
               color: CyberTheme.textSecondary,
             ),
           ),
+        ),
+        const SizedBox(height: 24),
+
+        // Hero Action Buttons (Solid White Pill + Translucent Glass Pill)
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            CyberButton(
+              variant: CyberButtonVariant.whitePill,
+              height: 44,
+              padding: const EdgeInsets.symmetric(horizontal: 28),
+              icon: Icons.upload_file,
+              onTap: _pickAndIngestFile,
+              child: const Text('Get started'),
+            ),
+            const SizedBox(width: 14),
+            CyberButton(
+              variant: CyberButtonVariant.glassPill,
+              height: 44,
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              icon: Icons.radar,
+              onTap: () => _scrollToSection(600),
+              child: const Text('Learn more'),
+            ),
+          ],
         ),
       ],
     );
@@ -601,11 +659,11 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
                 padding: const EdgeInsets.symmetric(vertical: 36, horizontal: 20),
                 decoration: BoxDecoration(
                   color: _isDragging
-                      ? CyberTheme.cyan.withValues(alpha: 0.15)
+                      ? CyberTheme.accentColor.withValues(alpha: 0.18)
                       : CyberTheme.surfaceElevated.withValues(alpha: 0.6),
                   borderRadius: BorderRadius.circular(18),
                   border: Border.all(
-                    color: _isDragging ? CyberTheme.cyanLight : CyberTheme.borderBright,
+                    color: _isDragging ? CyberTheme.accentColor : CyberTheme.borderShard,
                     width: _isDragging ? 2 : 1.2,
                   ),
                 ),
@@ -617,10 +675,10 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
                       height: 58,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        gradient: CyberTheme.primaryGradient,
+                        gradient: CyberTheme.shardGradient,
                         boxShadow: [
                           BoxShadow(
-                            color: CyberTheme.cyan.withValues(alpha: 0.3),
+                            color: CyberTheme.accentColor.withValues(alpha: 0.35),
                             blurRadius: 18,
                             spreadRadius: 2,
                           ),
@@ -635,7 +693,7 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
                         fontSize: 13,
                         fontWeight: FontWeight.w800,
                         letterSpacing: 0.8,
-                        color: _isDragging ? CyberTheme.cyanLight : CyberTheme.textPrimary,
+                        color: _isDragging ? const Color(0xFFC084FC) : CyberTheme.textPrimary,
                       ),
                     ),
                     const SizedBox(height: 6),
@@ -643,12 +701,21 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
                       'Supports Images, RAW, Documents, PDFs, Video (Automatic C2PA Sealing)',
                       style: TextStyle(fontSize: 11, color: CyberTheme.textMuted),
                     ),
+                    const SizedBox(height: 16),
+                    CyberButton(
+                      variant: CyberButtonVariant.whitePill,
+                      height: 34,
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      icon: Icons.folder_open,
+                      onTap: _pickAndIngestFile,
+                      child: const Text('Browse Device'),
+                    ),
                     if (provenanceState.isLoading) ...[
                       const SizedBox(height: 18),
                       const SizedBox(
                         width: 22,
                         height: 22,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: CyberTheme.cyan),
+                        child: CircularProgressIndicator(strokeWidth: 2, color: CyberTheme.accentColor),
                       ),
                     ],
                   ],
@@ -1112,7 +1179,7 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
                               ),
                             ),
                             CyberButton(
-                              variant: isSelected ? CyberButtonVariant.emerald : CyberButtonVariant.gradient,
+                              variant: isSelected ? CyberButtonVariant.emerald : CyberButtonVariant.purple,
                               height: 32,
                               padding: const EdgeInsets.symmetric(horizontal: 14),
                               onTap: () {
@@ -1156,8 +1223,9 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
               ),
               const SizedBox(width: 12),
               CyberButton(
-                variant: CyberButtonVariant.emerald,
+                variant: CyberButtonVariant.whitePill,
                 height: 44,
+                padding: const EdgeInsets.symmetric(horizontal: 22),
                 isLoading: progressState.isLoading,
                 onTap: () {
                   if (_targetController.text.isNotEmpty) {
@@ -1458,9 +1526,9 @@ class CyberHeatMapRenderer extends CustomPainter {
       if (intensity < 0.3) {
         paint.color = CyberTheme.surfaceElevated;
       } else if (intensity < 0.7) {
-        paint.color = CyberTheme.cyan.withValues(alpha: intensity);
+        paint.color = CyberTheme.shardColor.withValues(alpha: intensity);
       } else {
-        paint.color = CyberTheme.emerald.withValues(alpha: intensity);
+        paint.color = CyberTheme.accentColor.withValues(alpha: intensity);
       }
       canvas.drawRect(rect, paint);
     }

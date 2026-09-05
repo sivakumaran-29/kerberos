@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import '../theme/cyber_theme.dart';
 
 enum CyberButtonVariant {
+  whitePill, // Solid white pill with dark text (React Bits primary)
+  glassPill, // Dark translucent glass pill with subtle border
+  purple,    // Electric purple accent pill (#A855F7)
   primary,
   emerald,
   gradient,
@@ -25,14 +28,14 @@ class CyberButton extends StatefulWidget {
     super.key,
     required this.child,
     this.onTap,
-    this.variant = CyberButtonVariant.primary,
+    this.variant = CyberButtonVariant.whitePill,
     this.icon,
     this.isLoading = false,
     this.width,
-    this.height = 44,
-    this.padding = const EdgeInsets.symmetric(horizontal: 20),
+    this.height = 42,
+    this.padding = const EdgeInsets.symmetric(horizontal: 22),
     this.isExpanded = false,
-    this.borderRadius = 12.0,
+    this.borderRadius = 100.0, // Default to rounded-full pill
   });
 
   @override
@@ -52,27 +55,41 @@ class _CyberButtonState extends State<CyberButton> {
     Color textColor;
 
     switch (widget.variant) {
+      case CyberButtonVariant.whitePill:
+        bgColor = _isHovered ? const Color(0xFFF1F5F9) : Colors.white;
+        borderColor = Colors.white;
+        glowColor = Colors.white;
+        textColor = const Color(0xFF120F17);
+        break;
+      case CyberButtonVariant.glassPill:
+        bgColor = _isHovered ? const Color(0x25FFFFFF) : const Color(0x12FFFFFF);
+        borderColor = _isHovered ? const Color(0x44FFFFFF) : const Color(0x22FFFFFF);
+        glowColor = Colors.white;
+        textColor = Colors.white;
+        break;
+      case CyberButtonVariant.purple:
+        bgColor = _isHovered ? const Color(0xFF9333EA) : CyberTheme.accentColor;
+        borderColor = const Color(0xFFC084FC);
+        glowColor = CyberTheme.accentColor;
+        textColor = Colors.white;
+        break;
       case CyberButtonVariant.gradient:
         bgGradient = _isHovered
             ? const LinearGradient(
-                colors: [Color(0xFF0891B2), Color(0xFF4F46E5)],
+                colors: [Color(0xFF9333EA), Color(0xFF6366F1)],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               )
-            : const LinearGradient(
-                colors: [Color(0xFF06B6D4), Color(0xFF6366F1)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              );
-        borderColor = const Color(0x6638BDF8);
-        glowColor = CyberTheme.cyan;
+            : CyberTheme.shardGradient;
+        borderColor = const Color(0x66A855F7);
+        glowColor = CyberTheme.accentColor;
         textColor = Colors.white;
         break;
       case CyberButtonVariant.primary:
-        bgColor = _isHovered ? const Color(0xFF0891B2) : CyberTheme.cyan;
-        borderColor = CyberTheme.cyanLight;
-        glowColor = CyberTheme.cyan;
-        textColor = const Color(0xFF04131D);
+        bgColor = _isHovered ? const Color(0xFF9333EA) : CyberTheme.accentColor;
+        borderColor = const Color(0xFFC084FC);
+        glowColor = CyberTheme.accentColor;
+        textColor = Colors.white;
         break;
       case CyberButtonVariant.emerald:
         bgColor = _isHovered ? const Color(0xFF059669) : CyberTheme.emerald;
@@ -89,7 +106,7 @@ class _CyberButtonState extends State<CyberButton> {
       case CyberButtonVariant.glass:
         bgColor = _isHovered ? CyberTheme.surfaceElevated : CyberTheme.surface;
         borderColor = _isHovered ? CyberTheme.borderBright : CyberTheme.border;
-        glowColor = CyberTheme.cyan;
+        glowColor = CyberTheme.accentColor;
         textColor = CyberTheme.textPrimary;
         break;
     }
@@ -108,7 +125,7 @@ class _CyberButtonState extends State<CyberButton> {
         boxShadow: _isHovered && widget.onTap != null
             ? [
                 BoxShadow(
-                  color: glowColor.withValues(alpha: 0.35),
+                  color: glowColor.withValues(alpha: widget.variant == CyberButtonVariant.whitePill ? 0.25 : 0.4),
                   blurRadius: 18,
                   spreadRadius: 1,
                   offset: const Offset(0, 2),
@@ -137,9 +154,9 @@ class _CyberButtonState extends State<CyberButton> {
                   DefaultTextStyle(
                     style: TextStyle(
                       color: textColor,
-                      fontSize: 12,
+                      fontSize: 13,
                       fontWeight: FontWeight.w700,
-                      letterSpacing: 0.8,
+                      letterSpacing: 0.3,
                     ),
                     child: widget.child,
                   ),

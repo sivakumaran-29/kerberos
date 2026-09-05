@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../shared/theme/cyber_theme.dart';
 import '../../../shared/widgets/glass_container.dart';
 import '../../../shared/widgets/cyber_button.dart';
+import '../../../shared/widgets/shards_background.dart';
 import '../providers/auth_providers.dart';
 
 class AuthScreen extends ConsumerStatefulWidget {
@@ -154,14 +155,14 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                       mainAxisAlignment: MainAxisAlignment.end,
                       children: [
                         CyberButton(
-                          variant: CyberButtonVariant.glass,
+                          variant: CyberButtonVariant.glassPill,
                           height: 38,
                           onTap: () => Navigator.pop(dialogContext),
                           child: const Text('CANCEL'),
                         ),
                         const SizedBox(width: 12),
                         CyberButton(
-                          variant: CyberButtonVariant.primary,
+                          variant: CyberButtonVariant.whitePill,
                           height: 38,
                           isLoading: isSending,
                           onTap: () async {
@@ -238,40 +239,9 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
       backgroundColor: CyberTheme.background,
       body: Stack(
         children: [
-          // Background subtle ambient glows
-          Positioned(
-            top: -120,
-            left: -120,
-            child: Container(
-              width: 400,
-              height: 400,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: RadialGradient(
-                  colors: [
-                    CyberTheme.cyan.withValues(alpha: 0.15),
-                    Colors.transparent,
-                  ],
-                ),
-              ),
-            ),
-          ),
-          Positioned(
-            bottom: -120,
-            right: -120,
-            child: Container(
-              width: 450,
-              height: 450,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: RadialGradient(
-                  colors: [
-                    CyberTheme.emerald.withValues(alpha: 0.12),
-                    Colors.transparent,
-                  ],
-                ),
-              ),
-            ),
+          // 1. 3D Prismatic Shards ("Wind Sculpture") Interactive Engine
+          const Positioned.fill(
+            child: ShardsBackground(),
           ),
 
           // Central Authentication Card
@@ -282,22 +252,29 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                 width: 460,
                 padding: const EdgeInsets.all(36),
                 glow: true,
-                borderColor: CyberTheme.borderBright,
+                glowColor: CyberTheme.accentColor,
+                borderColor: CyberTheme.borderAccent,
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // Brand Badge
+                    // Brand Badge (React Bits / Project Kerberos)
                     Center(
                       child: Container(
-                        width: 52,
-                        height: 52,
+                        width: 54,
+                        height: 54,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          color: CyberTheme.cyan.withValues(alpha: 0.1),
-                          border: Border.all(color: CyberTheme.cyanGlow, width: 1.5),
+                          gradient: CyberTheme.shardGradient,
+                          boxShadow: [
+                            BoxShadow(
+                              color: CyberTheme.accentColor.withValues(alpha: 0.4),
+                              blurRadius: 18,
+                              spreadRadius: 2,
+                            ),
+                          ],
                         ),
-                        child: const Icon(Icons.shield_outlined, color: CyberTheme.cyan, size: 28),
+                        child: const Icon(Icons.all_inclusive_rounded, color: Colors.white, size: 30),
                       ),
                     ),
                     const SizedBox(height: 16),
@@ -315,12 +292,12 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                     const SizedBox(height: 6),
                     const Center(
                       child: Text(
-                        'ZERO-TRUST PROVENANCE // SECURE P2P TRANSFER',
+                        'REACT BITS // ZERO-TRUST PROVENANCE ENCLAVE',
                         style: TextStyle(
                           fontSize: 10,
-                          fontWeight: FontWeight.w600,
+                          fontWeight: FontWeight.w700,
                           letterSpacing: 1.2,
-                          color: CyberTheme.textMuted,
+                          color: CyberTheme.textSecondary,
                         ),
                       ),
                     ),
@@ -348,7 +325,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                                 decoration: BoxDecoration(
                                   color: !_isSignUp ? CyberTheme.surfaceElevated : Colors.transparent,
                                   borderRadius: BorderRadius.circular(8),
-                                  border: !_isSignUp ? Border.all(color: CyberTheme.borderBright) : null,
+                                  border: !_isSignUp ? Border.all(color: CyberTheme.borderAccent) : null,
                                 ),
                                 child: Center(
                                   child: Text(
@@ -357,7 +334,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                                       fontSize: 11,
                                       fontWeight: FontWeight.w700,
                                       letterSpacing: 1.0,
-                                      color: !_isSignUp ? CyberTheme.cyan : CyberTheme.textMuted,
+                                      color: !_isSignUp ? const Color(0xFFC084FC) : CyberTheme.textMuted,
                                     ),
                                   ),
                                 ),
@@ -376,7 +353,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                                 decoration: BoxDecoration(
                                   color: _isSignUp ? CyberTheme.surfaceElevated : Colors.transparent,
                                   borderRadius: BorderRadius.circular(8),
-                                  border: _isSignUp ? Border.all(color: CyberTheme.borderBright) : null,
+                                  border: _isSignUp ? Border.all(color: CyberTheme.borderAccent) : null,
                                 ),
                                 child: Center(
                                   child: Text(
@@ -385,7 +362,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                                       fontSize: 11,
                                       fontWeight: FontWeight.w700,
                                       letterSpacing: 1.0,
-                                      color: _isSignUp ? CyberTheme.emerald : CyberTheme.textMuted,
+                                      color: _isSignUp ? const Color(0xFFC084FC) : CyberTheme.textMuted,
                                     ),
                                   ),
                                 ),
@@ -530,7 +507,8 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                     // Primary Submit Button
                     CyberButton(
                       isExpanded: true,
-                      variant: _isSignUp ? CyberButtonVariant.emerald : CyberButtonVariant.primary,
+                      variant: CyberButtonVariant.whitePill,
+                      height: 44,
                       isLoading: _isLoading,
                       onTap: _submit,
                       child: Text(_isSignUp ? 'REGISTER & ENTER ENCLAVE' : 'INITIALIZE ENCLAVE SESSION'),
