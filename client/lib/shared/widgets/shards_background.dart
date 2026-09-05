@@ -106,9 +106,9 @@ class _ShardsBackgroundState extends State<ShardsBackground> with SingleTickerPr
                             center: centerAlign,
                             radius: centerRadius,
                             colors: [
-                              Color.lerp(const Color(0x408B5CF6), const Color(0x56A855F7), (sinT + 1) / 2)!,
-                              Color.lerp(const Color(0x227C3AED), const Color(0x326D28D9), (cosT + 1) / 2)!,
-                              Color.lerp(const Color(0x0E4C1D95), const Color(0x18581C87), (sinT + 1) / 2)!,
+                              Color.lerp(const Color(0x248B5CF6), const Color(0x30A855F7), (sinT + 1) / 2)!,
+                              Color.lerp(const Color(0x147C3AED), const Color(0x1E6D28D9), (cosT + 1) / 2)!,
+                              Color.lerp(const Color(0x084C1D95), const Color(0x10581C87), (sinT + 1) / 2)!,
                               Colors.transparent,
                             ],
                             stops: const [0.0, 0.35, 0.68, 1.0],

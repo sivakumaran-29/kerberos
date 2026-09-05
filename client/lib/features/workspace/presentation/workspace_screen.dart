@@ -122,6 +122,526 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
     }
   }
 
+  Widget _buildPasswordInput({
+    required TextEditingController controller,
+    required String label,
+    required String hint,
+    required bool isObscured,
+    required VoidCallback onToggleVisibility,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+            color: CyberTheme.textPrimary,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Container(
+          decoration: BoxDecoration(
+            color: const Color(0x14FFFFFF),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0x28FFFFFF)),
+          ),
+          child: TextField(
+            controller: controller,
+            obscureText: isObscured,
+            style: GoogleFonts.plusJakartaSans(fontSize: 13, color: Colors.white),
+            decoration: InputDecoration(
+              hintText: hint,
+              hintStyle: GoogleFonts.plusJakartaSans(fontSize: 12.5, color: CyberTheme.textMuted),
+              border: InputBorder.none,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              suffixIcon: IconButton(
+                icon: Icon(
+                  isObscured ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                  size: 18,
+                  color: CyberTheme.textMuted,
+                ),
+                onPressed: onToggleVisibility,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _showUserProfileModal(UserProfile profile) async {
+    final currentPasswordController = TextEditingController();
+    final newPasswordController = TextEditingController();
+    final confirmPasswordController = TextEditingController();
+
+    bool showCurrent = false;
+    bool showNew = false;
+    bool showConfirm = false;
+    bool isUpdatingPassword = false;
+    bool isSendingReset = false;
+    String? statusMessage;
+    bool isSuccessMessage = false;
+
+    await showDialog(
+      context: context,
+      builder: (dialogCtx) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return Dialog(
+              backgroundColor: Colors.transparent,
+              insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+              child: Container(
+                constraints: const BoxConstraints(maxWidth: 520),
+                decoration: BoxDecoration(
+                  color: const Color(0xFB0E081A),
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(color: CyberTheme.borderAccent, width: 1.2),
+                  boxShadow: [
+                    const BoxShadow(
+                      color: Color(0x99000000),
+                      blurRadius: 40,
+                      offset: Offset(0, 16),
+                    ),
+                    BoxShadow(
+                      color: CyberTheme.accentColor.withValues(alpha: 0.25),
+                      blurRadius: 30,
+                      spreadRadius: -4,
+                    ),
+                  ],
+                ),
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(28),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // Header Row
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: CyberTheme.accentColor.withValues(alpha: 0.15),
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(color: CyberTheme.borderAccent),
+                                ),
+                                child: const Icon(
+                                  Icons.manage_accounts_rounded,
+                                  color: Color(0xFFC084FC),
+                                  size: 20,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Agent Enclave Identity',
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 17,
+                                      fontWeight: FontWeight.w800,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                  Text(
+                                    'Account credentials & security enclave',
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 11.5,
+                                      color: CyberTheme.textSecondary,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                          IconButton(
+                            onPressed: () => Navigator.pop(dialogCtx),
+                            icon: const Icon(Icons.close_rounded, color: CyberTheme.textMuted, size: 20),
+                            tooltip: 'Close',
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 22),
+
+                      // User Identity Card
+                      Container(
+                        padding: const EdgeInsets.all(18),
+                        decoration: BoxDecoration(
+                          color: const Color(0x18FFFFFF),
+                          borderRadius: BorderRadius.circular(18),
+                          border: Border.all(color: const Color(0x28FFFFFF)),
+                        ),
+                        child: Row(
+                          children: [
+                            // Big Glowing Initials Avatar
+                            Container(
+                              width: 52,
+                              height: 52,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                gradient: const LinearGradient(
+                                  colors: [Color(0xFFC084FC), Color(0xFF7C3AED)],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: CyberTheme.accentColor.withValues(alpha: 0.4),
+                                    blurRadius: 14,
+                                  ),
+                                ],
+                              ),
+                              padding: const EdgeInsets.all(2),
+                              child: Container(
+                                decoration: const BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: Color(0xFF140C28),
+                                ),
+                                child: Center(
+                                  child: Text(
+                                    profile.initials,
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w900,
+                                      color: const Color(0xFFE9D5FF),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Flexible(
+                                        child: Text(
+                                          profile.displayName,
+                                          style: GoogleFonts.plusJakartaSans(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w800,
+                                            color: Colors.white,
+                                          ),
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0x1E34D399),
+                                          borderRadius: BorderRadius.circular(100),
+                                          border: Border.all(color: const Color(0x4034D399)),
+                                        ),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            const Icon(Icons.verified_rounded, size: 10, color: Color(0xFF34D399)),
+                                            const SizedBox(width: 4),
+                                            Text(
+                                              'VERIFIED NODE',
+                                              style: GoogleFonts.jetBrainsMono(
+                                                fontSize: 9,
+                                                fontWeight: FontWeight.w800,
+                                                color: const Color(0xFF34D399),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    profile.email,
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 13,
+                                      color: CyberTheme.textSecondary,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Row(
+                                    children: [
+                                      Text(
+                                        'NODE ID: ${profile.id.isNotEmpty ? (profile.id.length > 14 ? '${profile.id.substring(0, 12)}...' : profile.id) : 'active-local'}',
+                                        style: GoogleFonts.jetBrainsMono(
+                                          fontSize: 10,
+                                          color: CyberTheme.textMuted,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 6),
+                                      InkWell(
+                                        onTap: () {
+                                          Clipboard.setData(ClipboardData(text: profile.id));
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            SnackBar(
+                                              content: const Text('Node ID copied to clipboard'),
+                                              backgroundColor: CyberTheme.surfaceElevated,
+                                              duration: const Duration(seconds: 2),
+                                            ),
+                                          );
+                                        },
+                                        child: const Icon(Icons.copy_rounded, size: 12, color: CyberTheme.shardColor),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+
+                      // Change Password Section Divider & Title
+                      Row(
+                        children: [
+                          Text(
+                            'CHANGE PASSWORD',
+                            style: GoogleFonts.jetBrainsMono(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 1.0,
+                              color: const Color(0xFFC084FC),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          const Expanded(child: Divider(color: CyberTheme.border, thickness: 1)),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        'To change your password, verify your identity by entering your previous password first.',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 12,
+                          color: CyberTheme.textSecondary,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Current Password Field
+                      _buildPasswordInput(
+                        controller: currentPasswordController,
+                        label: 'Current (Previous) Password',
+                        hint: 'Enter your existing password',
+                        isObscured: !showCurrent,
+                        onToggleVisibility: () => setDialogState(() => showCurrent = !showCurrent),
+                      ),
+                      const SizedBox(height: 12),
+
+                      // New Password Field
+                      _buildPasswordInput(
+                        controller: newPasswordController,
+                        label: 'New Password',
+                        hint: 'Min. 6 characters',
+                        isObscured: !showNew,
+                        onToggleVisibility: () => setDialogState(() => showNew = !showNew),
+                      ),
+                      const SizedBox(height: 12),
+
+                      // Confirm Password Field
+                      _buildPasswordInput(
+                        controller: confirmPasswordController,
+                        label: 'Confirm New Password',
+                        hint: 'Re-enter your new password',
+                        isObscured: !showConfirm,
+                        onToggleVisibility: () => setDialogState(() => showConfirm = !showConfirm),
+                      ),
+                      const SizedBox(height: 14),
+
+                      // Status message display
+                      if (statusMessage != null)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                          margin: const EdgeInsets.only(bottom: 14),
+                          decoration: BoxDecoration(
+                            color: isSuccessMessage
+                                ? const Color(0x1E34D399)
+                                : const Color(0x1EFF5252),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: isSuccessMessage
+                                  ? const Color(0x4034D399)
+                                  : const Color(0x50FF5252),
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                isSuccessMessage ? Icons.check_circle_outline_rounded : Icons.error_outline_rounded,
+                                size: 16,
+                                color: isSuccessMessage ? const Color(0xFF34D399) : const Color(0xFFFF5252),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  statusMessage!,
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 12,
+                                    color: isSuccessMessage ? const Color(0xFF34D399) : const Color(0xFFFF8080),
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                      // Submit Password Update Button
+                      CyberButton(
+                        variant: CyberButtonVariant.whitePill,
+                        height: 42,
+                        isLoading: isUpdatingPassword,
+                        onTap: () async {
+                          final currentPass = currentPasswordController.text;
+                          final newPass = newPasswordController.text;
+                          final confirmPass = confirmPasswordController.text;
+
+                          if (currentPass.isEmpty) {
+                            setDialogState(() {
+                              statusMessage = 'Please enter your current password to verify identity.';
+                              isSuccessMessage = false;
+                            });
+                            return;
+                          }
+                          if (newPass.length < 6) {
+                            setDialogState(() {
+                              statusMessage = 'New password must be at least 6 characters long.';
+                              isSuccessMessage = false;
+                            });
+                            return;
+                          }
+                          if (newPass != confirmPass) {
+                            setDialogState(() {
+                              statusMessage = 'New password and confirm password do not match.';
+                              isSuccessMessage = false;
+                            });
+                            return;
+                          }
+
+                          setDialogState(() {
+                            isUpdatingPassword = true;
+                            statusMessage = null;
+                          });
+
+                          try {
+                            await ref.read(authServiceProvider).changePassword(
+                              currentPassword: currentPass,
+                              newPassword: newPass,
+                            );
+                            setDialogState(() {
+                              isUpdatingPassword = false;
+                              isSuccessMessage = true;
+                              statusMessage = 'Password updated successfully! Your enclave credentials have been re-secured.';
+                              currentPasswordController.clear();
+                              newPasswordController.clear();
+                              confirmPasswordController.clear();
+                            });
+                          } catch (e) {
+                            setDialogState(() {
+                              isUpdatingPassword = false;
+                              isSuccessMessage = false;
+                              statusMessage = e.toString().replaceFirst(RegExp(r'^Exception:\s*'), '');
+                            });
+                          }
+                        },
+                        child: Text(
+                          'Update Password',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+
+                      // Forgot Previous Password Principle Option
+                      Center(
+                        child: TextButton.icon(
+                          onPressed: isSendingReset
+                              ? null
+                              : () async {
+                                  setDialogState(() {
+                                    isSendingReset = true;
+                                    statusMessage = null;
+                                  });
+                                  try {
+                                    await ref.read(authServiceProvider).resetPasswordForEmail(profile.email);
+                                    setDialogState(() {
+                                      isSendingReset = false;
+                                      isSuccessMessage = true;
+                                      statusMessage = 'Password recovery email dispatched to ${profile.email}. Follow the instructions to reset your password without your previous credentials.';
+                                    });
+                                  } catch (e) {
+                                    setDialogState(() {
+                                      isSendingReset = false;
+                                      isSuccessMessage = false;
+                                      statusMessage = e.toString().replaceFirst(RegExp(r'^Exception:\s*'), '');
+                                    });
+                                  }
+                                },
+                          icon: const Icon(Icons.help_outline_rounded, size: 14, color: Color(0xFFC084FC)),
+                          label: Text(
+                            'Forgot previous password? Send recovery link',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: const Color(0xFFC084FC),
+                              decoration: TextDecoration.underline,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+
+                      const Divider(color: CyberTheme.border, thickness: 1),
+                      const SizedBox(height: 12),
+
+                      // Sign Out Option inside modal
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'End node session?',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 12,
+                              color: CyberTheme.textMuted,
+                            ),
+                          ),
+                          CyberButton(
+                            variant: CyberButtonVariant.danger,
+                            height: 32,
+                            padding: const EdgeInsets.symmetric(horizontal: 14),
+                            onTap: () {
+                              Navigator.pop(dialogCtx);
+                              _confirmSignOut();
+                            },
+                            child: const Text('SIGN OUT'),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+
+    currentPasswordController.dispose();
+    newPasswordController.dispose();
+    confirmPasswordController.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     final userProfile = ref.watch(userProfileProvider);
@@ -485,46 +1005,53 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // Aesthetic User Avatar Logo with Tooltip
-                    Tooltip(
-                      message: '${profile.displayName}\n${profile.email}',
-                      textStyle: GoogleFonts.plusJakartaSans(fontSize: 11, color: Colors.white),
-                      decoration: BoxDecoration(
-                        color: CyberTheme.surfaceElevated,
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: CyberTheme.borderAccent),
-                      ),
-                      child: Container(
-                        width: 34,
-                        height: 34,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          gradient: const LinearGradient(
-                            colors: [Color(0xFFC084FC), Color(0xFF7C3AED)],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
+                    // Interactive User Avatar (Opens Profile & Security Modal)
+                    InkWell(
+                      onTap: () => _showUserProfileModal(profile),
+                      borderRadius: BorderRadius.circular(100),
+                      child: MouseRegion(
+                        cursor: SystemMouseCursors.click,
+                        child: Tooltip(
+                          message: 'Agent Profile & Security Settings\n${profile.email}',
+                          textStyle: GoogleFonts.plusJakartaSans(fontSize: 11, color: Colors.white),
+                          decoration: BoxDecoration(
+                            color: CyberTheme.surfaceElevated,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: CyberTheme.borderAccent),
                           ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: CyberTheme.accentColor.withValues(alpha: 0.35),
-                              blurRadius: 10,
-                              spreadRadius: 1,
+                          child: Container(
+                            width: 36,
+                            height: 36,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              gradient: const LinearGradient(
+                                colors: [Color(0xFFC084FC), Color(0xFF7C3AED)],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: CyberTheme.accentColor.withValues(alpha: 0.45),
+                                  blurRadius: 12,
+                                  spreadRadius: 1,
+                                ),
+                              ],
                             ),
-                          ],
-                        ),
-                        padding: const EdgeInsets.all(1.5),
-                        child: Container(
-                          decoration: const BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: Color(0xFF160F2B),
-                          ),
-                          child: Center(
-                            child: Text(
-                              profile.initials,
-                              style: GoogleFonts.plusJakartaSans(
-                                color: const Color(0xFFE9D5FF),
-                                fontSize: 11,
-                                fontWeight: FontWeight.w900,
+                            padding: const EdgeInsets.all(1.5),
+                            child: Container(
+                              decoration: const BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: Color(0xFF160F2B),
+                              ),
+                              child: Center(
+                                child: Text(
+                                  profile.initials,
+                                  style: GoogleFonts.plusJakartaSans(
+                                    color: const Color(0xFFE9D5FF),
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
                               ),
                             ),
                           ),
@@ -764,31 +1291,39 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
         ),
         const SizedBox(height: 20),
 
-        // Hero Action Buttons
+        // Hero Action Buttons (Enlarged & Commanding)
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             CyberButton(
               variant: CyberButtonVariant.whitePill,
-              height: 42,
-              padding: const EdgeInsets.symmetric(horizontal: 26),
+              height: 52,
+              padding: const EdgeInsets.symmetric(horizontal: 32),
               icon: Icons.upload_file,
               onTap: () => _navigateToPage(1),
               child: Text(
                 'Get started',
-                style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800),
+                style: GoogleFonts.plusJakartaSans(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 15,
+                  letterSpacing: 0.2,
+                ),
               ),
             ),
-            const SizedBox(width: 14),
+            const SizedBox(width: 18),
             CyberButton(
               variant: CyberButtonVariant.glassPill,
-              height: 42,
-              padding: const EdgeInsets.symmetric(horizontal: 22),
+              height: 52,
+              padding: const EdgeInsets.symmetric(horizontal: 28),
               icon: Icons.radar,
               onTap: () => _navigateToPage(2),
               child: Text(
                 'Launch Radar',
-                style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
+                style: GoogleFonts.plusJakartaSans(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 15,
+                  letterSpacing: 0.2,
+                ),
               ),
             ),
           ],
@@ -803,7 +1338,7 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
   Widget _buildHomePage() {
     return SingleChildScrollView(
       controller: _scrollController,
-      padding: const EdgeInsets.only(left: 24, right: 24, top: 46, bottom: 36),
+      padding: const EdgeInsets.only(left: 24, right: 24, top: 76, bottom: 40),
       child: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 1100),

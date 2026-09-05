@@ -17,11 +17,13 @@ final currentUserProvider = Provider<User?>((ref) {
 });
 
 class UserProfile {
+  final String id;
   final String displayName;
   final String email;
   final String initials;
 
   const UserProfile({
+    this.id = '',
     required this.displayName,
     required this.email,
     required this.initials,
@@ -32,6 +34,7 @@ final userProfileProvider = Provider<UserProfile>((ref) {
   final user = ref.watch(currentUserProvider);
   if (user == null) {
     return const UserProfile(
+      id: 'anonymous-node',
       displayName: 'Guest Agent',
       email: 'offline@enclave.local',
       initials: 'GA',
@@ -60,6 +63,7 @@ final userProfileProvider = Provider<UserProfile>((ref) {
   }
 
   return UserProfile(
+    id: user.id,
     displayName: name,
     email: email,
     initials: initials,

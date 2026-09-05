@@ -118,6 +118,69 @@ class AuthService {
     }
   }
 
+  /// Change password by first verifying the current (previous) password, then updating to the new password.
+  Future<void> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    final email = userEmail;
+    if (email.isEmpty) {
+      throw Exception("No authenticated user found.");
+    }
+    if (currentPassword.isEmpty) {
+      throw Exception("Please enter your current password.");
+    }
+    if (newPassword.length < 6) {
+      throw Exception("New password must be at least 6 characters long.");
+    }
+    if (currentPassword == newPassword) {
+      throw Exception("New password must be different from your current password.");
+    }
+
+    // Step 1: Validate current password by re-authenticating
+    try {
+      await _supabase.auth.signInWithPassword(
+        email: email,
+        password: currentPassword,
+      );
+    } on AuthException catch (e) {
+      if (e.message.toLowerCase().contains("invalid login credentials")) {
+        throw Exception("Previous password is incorrect. Please enter your correct current password or use password recovery.");
+      }
+      throw Exception("Verification failed: ${e.message}");
+    } catch (e) {
+      throw Exception("Previous password is incorrect. Please try again or use the recovery link.");
+    }
+
+    // Step 2: Update password via Supabase Auth
+    try {
+      await _supabase.auth.updateUser(
+        UserAttributes(password: newPassword),
+      );
+    } on AuthException catch (e) {
+      throw Exception(e.message);
+    } catch (e) {
+      throw Exception("Failed to update password: ${e.toString().replaceFirst(RegExp(r'^Exception:\s*'), '')}");
+    }
+  }
+
+  /// Update user profile details (such as display name).
+  Future<void> updateProfile({required String displayName}) async {
+    final cleanName = displayName.trim();
+    if (cleanName.isEmpty) {
+      throw Exception("Display name cannot be empty.");
+    }
+    try {
+      await _supabase.auth.updateUser(
+        UserAttributes(data: {'display_name': cleanName, 'name': cleanName}),
+      );
+    } on AuthException catch (e) {
+      throw Exception(e.message);
+    } catch (e) {
+      throw Exception("Failed to update profile: ${e.toString().replaceFirst(RegExp(r'^Exception:\s*'), '')}");
+    }
+  }
+
   /// Sign out current user.
   Future<void> signOut() async {
     await _supabase.auth.signOut();
