@@ -697,7 +697,7 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
             ),
           ),
         ),
-        const SizedBox(height: 32),
+        const SizedBox(height: 18),
 
         // Bold Crisp Modern Sans Headline with Theme-Highlighted Words
         Text.rich(
@@ -733,11 +733,11 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
           ),
           textAlign: TextAlign.center,
           style: GoogleFonts.plusJakartaSans(
-            fontSize: 48,
+            fontSize: 44,
             fontWeight: FontWeight.w900,
-            letterSpacing: -1.4,
+            letterSpacing: -1.2,
             color: Colors.white,
-            height: 1.16,
+            height: 1.14,
             shadows: [
               Shadow(
                 color: CyberTheme.accentColor.withValues(alpha: 0.4),
@@ -746,23 +746,23 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
             ],
           ),
         ),
-        const SizedBox(height: 20),
+        const SizedBox(height: 12),
 
         // Subtitle (Kept as plain uniform text)
         ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 780),
+          constraints: const BoxConstraints(maxWidth: 720),
           child: Text(
             'Interactive 3D Prismatic Shards protecting true digital originals. Seal assets with C2PA hardware manifests, extract perceptual hash vectors, and stream encrypted payloads directly between peers over WebRTC DTLS tunnels.',
             textAlign: TextAlign.center,
             style: GoogleFonts.plusJakartaSans(
-              fontSize: 15,
+              fontSize: 14.5,
               fontWeight: FontWeight.w400,
-              height: 1.65,
+              height: 1.55,
               color: CyberTheme.textSecondary,
             ),
           ),
         ),
-        const SizedBox(height: 32),
+        const SizedBox(height: 20),
 
         // Hero Action Buttons
         Row(
@@ -770,8 +770,8 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
           children: [
             CyberButton(
               variant: CyberButtonVariant.whitePill,
-              height: 46,
-              padding: const EdgeInsets.symmetric(horizontal: 28),
+              height: 42,
+              padding: const EdgeInsets.symmetric(horizontal: 26),
               icon: Icons.upload_file,
               onTap: () => _navigateToPage(1),
               child: Text(
@@ -779,11 +779,11 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
                 style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800),
               ),
             ),
-            const SizedBox(width: 16),
+            const SizedBox(width: 14),
             CyberButton(
               variant: CyberButtonVariant.glassPill,
-              height: 46,
-              padding: const EdgeInsets.symmetric(horizontal: 24),
+              height: 42,
+              padding: const EdgeInsets.symmetric(horizontal: 22),
               icon: Icons.radar,
               onTap: () => _navigateToPage(2),
               child: Text(
@@ -803,7 +803,7 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
   Widget _buildHomePage() {
     return SingleChildScrollView(
       controller: _scrollController,
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
       child: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 1100),
@@ -811,9 +811,9 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               _buildHeroSection(),
-              const SizedBox(height: 52),
+              const SizedBox(height: 20),
               _buildParallelDownloadBoxes(),
-              const SizedBox(height: 64),
+              const SizedBox(height: 80),
               _buildApplicationExplainerSection(),
               const SizedBox(height: 56),
             ],
@@ -829,20 +829,17 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
   Widget _buildParallelDownloadBoxes() {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final isDesktop = constraints.maxWidth >= 740;
+        final isDesktop = constraints.maxWidth >= 780;
+        final isCompact = constraints.maxWidth < 920;
+
         final windowsCard = _buildDownloadCard(
-          platform: 'WINDOWS ENCLAVE',
           title: 'Windows Desktop Client',
-          subtitle:
-              'Native hardware-accelerated enclave client for Windows 10 & 11. Binds direct hardware TPM root-of-trust C2PA manifests, computes real-time perceptual neural hashes, and activates zero-latency DTLS 1.3 P2P AirDrop transfer.',
-          badge: 'WIN 10 / 11 • x64 & ARM64',
+          subtitle: 'TPM 2.0 root-of-trust C2PA sealing & DTLS 1.3 P2P node',
+          badge: 'WIN 10/11 • x64',
           badgeColor: const Color(0xFF38BDF8),
           icon: Icons.desktop_windows_rounded,
           iconColor: const Color(0xFF38BDF8),
-          buttonText: 'Download for Windows',
-          buttonIcon: Icons.download_rounded,
-          isPrimary: true,
-          specs: const ['v1.2.0-stable', 'Hardware TPM 2.0', 'DirectX 12 / AVX2', '48.6 MB'],
+          buttonText: isCompact ? 'Download' : 'Download for Windows',
           onDownload: () {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
@@ -889,18 +886,13 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
         );
 
         final mobileCard = _buildDownloadCard(
-          platform: 'MOBILE COMPANION',
-          title: 'Mobile Phone Node',
-          subtitle:
-              'Cross-platform companion app for iOS & Android. Ingest live camera captures directly into C2PA cryptographic envelopes, discover nearby desktops on the radar mesh, and stream peer payloads instantaneously.',
-          badge: 'ANDROID 11+ • iOS 16+ TESTFLIGHT',
+          title: 'Mobile Phone Companion',
+          subtitle: 'Camera manifest seal, radar mesh & local ledger sync',
+          badge: 'ANDROID & iOS',
           badgeColor: const Color(0xFF34D399),
           icon: Icons.smartphone_rounded,
           iconColor: const Color(0xFF34D399),
-          buttonText: 'Download for Mobile',
-          buttonIcon: Icons.phone_android_rounded,
-          isPrimary: false,
-          specs: const ['v1.2.0-rc3', 'C2PA Camera Sensor Seal', 'Cross-Platform APK/IPA', '32.1 MB'],
+          buttonText: isCompact ? 'Download' : 'Download for Mobile',
           onDownload: () {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
@@ -948,10 +940,9 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
 
         if (isDesktop) {
           return Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(child: windowsCard),
-              const SizedBox(width: 24),
+              const SizedBox(width: 16),
               Expanded(child: mobileCard),
             ],
           );
@@ -959,7 +950,7 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
           return Column(
             children: [
               windowsCard,
-              const SizedBox(height: 20),
+              const SizedBox(height: 12),
               mobileCard,
             ],
           );
@@ -969,7 +960,6 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
   }
 
   Widget _buildDownloadCard({
-    required String platform,
     required String title,
     required String subtitle,
     required String badge,
@@ -977,125 +967,116 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
     required IconData icon,
     required Color iconColor,
     required String buttonText,
-    required IconData buttonIcon,
-    required bool isPrimary,
-    required List<String> specs,
     required VoidCallback onDownload,
   }) {
     return Container(
-      padding: const EdgeInsets.all(28),
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
       decoration: BoxDecoration(
-        color: const Color(0x18FFFFFF),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: const Color(0x30FFFFFF), width: 1.2),
-        boxShadow: const [
-          BoxShadow(
+        color: const Color(0x10FFFFFF),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0x28FFFFFF), width: 1.0),
+        boxShadow: [
+          const BoxShadow(
             color: Color(0x35000000),
-            blurRadius: 28,
-            offset: Offset(0, 10),
+            blurRadius: 16,
+            offset: Offset(0, 6),
+          ),
+          BoxShadow(
+            color: iconColor.withValues(alpha: 0.10),
+            blurRadius: 20,
+            spreadRadius: -2,
           ),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          // Top Platform Row & Tag
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: iconColor.withValues(alpha: 0.15),
-                  border: Border.all(color: iconColor.withValues(alpha: 0.35)),
-                ),
-                child: Icon(icon, color: iconColor, size: 24),
+          // Sleek Platform Icon Container
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              gradient: LinearGradient(
+                colors: [
+                  iconColor.withValues(alpha: 0.20),
+                  iconColor.withValues(alpha: 0.05),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: badgeColor.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(100),
-                  border: Border.all(color: badgeColor.withValues(alpha: 0.35)),
-                ),
-                child: Text(
-                  badge,
-                  style: GoogleFonts.jetBrainsMono(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
-                    color: badgeColor,
-                    letterSpacing: 0.5,
-                  ),
-                ),
-              ),
-            ],
+              border: Border.all(color: iconColor.withValues(alpha: 0.38), width: 1.0),
+            ),
+            child: Icon(icon, color: iconColor, size: 20),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(width: 14),
 
-          // Title
-          Text(
-            title,
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 21,
-              fontWeight: FontWeight.w800,
-              color: Colors.white,
-              letterSpacing: -0.4,
+          // Platform Info (Title + Monospace Tag + Subtitle)
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        title,
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                          letterSpacing: -0.2,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: badgeColor.withValues(alpha: 0.14),
+                        borderRadius: BorderRadius.circular(100),
+                        border: Border.all(color: badgeColor.withValues(alpha: 0.35), width: 0.8),
+                      ),
+                      child: Text(
+                        badge,
+                        style: GoogleFonts.jetBrainsMono(
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.w700,
+                          color: badgeColor,
+                          letterSpacing: 0.4,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  subtitle,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w400,
+                    color: CyberTheme.textSecondary,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(width: 14),
 
-          // Description
-          Text(
-            subtitle,
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 13,
-              fontWeight: FontWeight.w400,
-              height: 1.55,
-              color: CyberTheme.textSecondary,
-            ),
-          ),
-          const SizedBox(height: 20),
-
-          // Technical Specs chips
-          Wrap(
-            spacing: 8,
-            runSpacing: 6,
-            children: specs.map((spec) {
-              return Container(
-                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-                decoration: BoxDecoration(
-                  color: const Color(0x12FFFFFF),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: const Color(0x1CFFFFFF)),
-                ),
-                child: Text(
-                  spec,
-                  style: GoogleFonts.jetBrainsMono(
-                    fontSize: 10,
-                    color: CyberTheme.textMuted,
-                  ),
-                ),
-              );
-            }).toList(),
-          ),
-          const SizedBox(height: 24),
-
-          // Action Button
-          SizedBox(
-            width: double.infinity,
-            child: CyberButton(
-              variant: isPrimary ? CyberButtonVariant.whitePill : CyberButtonVariant.glassPill,
-              height: 44,
-              icon: buttonIcon,
-              onTap: onDownload,
-              child: Text(
-                buttonText,
-                style: GoogleFonts.plusJakartaSans(
-                  fontWeight: FontWeight.w800,
-                  fontSize: 13,
-                ),
+          // Download CTA Button (Identical style and color for both)
+          CyberButton(
+            variant: CyberButtonVariant.whitePill,
+            height: 36,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            icon: Icons.download_rounded,
+            onTap: onDownload,
+            child: Text(
+              buttonText,
+              style: GoogleFonts.plusJakartaSans(
+                fontWeight: FontWeight.w800,
+                fontSize: 12,
               ),
             ),
           ),
