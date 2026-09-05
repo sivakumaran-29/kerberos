@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -5,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:desktop_drop/desktop_drop.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:cross_file/cross_file.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import '../../../shared/theme/cyber_theme.dart';
 import '../../../shared/widgets/glass_container.dart';
@@ -14,6 +16,14 @@ import '../../auth/providers/auth_providers.dart';
 import '../../provenance/providers/provenance_providers.dart';
 import '../../network/providers/network_providers.dart';
 import '../../../main.dart'; // for ledgerProvider
+
+enum ActiveDeckModal {
+  none,
+  studio,
+  radar,
+  ledger,
+  specs,
+}
 
 class WorkspaceScreen extends ConsumerStatefulWidget {
   const WorkspaceScreen({super.key});
@@ -28,6 +38,7 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
   bool _isDragging = false;
   double _receiverProgress = 0.0;
   bool _isReceiving = false;
+  ActiveDeckModal _activeModal = ActiveDeckModal.none;
   late AnimationController _pulseController;
 
   @override
@@ -47,29 +58,43 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
     super.dispose();
   }
 
-  void _scrollToSection(double offset) {
-    if (_scrollController.hasClients) {
-      _scrollController.animateTo(
-        offset,
-        duration: const Duration(milliseconds: 600),
-        curve: Curves.easeOutCubic,
-      );
-    }
-  }
-
   Future<void> _confirmSignOut() async {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: CyberTheme.surface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('End Enclave Session?', style: TextStyle(color: CyberTheme.textPrimary)),
-        content: const Text('You will be signed out of this Kerberos node.', style: TextStyle(color: CyberTheme.textSecondary)),
+        backgroundColor: CyberTheme.surfaceElevated,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(18),
+          side: const BorderSide(color: CyberTheme.borderAccent),
+        ),
+        title: Text(
+          'End Enclave Session?',
+          style: GoogleFonts.plusJakartaSans(
+            color: CyberTheme.textPrimary,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        content: Text(
+          'You will be signed out of this Kerberos node.',
+          style: GoogleFonts.plusJakartaSans(color: CyberTheme.textSecondary),
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('CANCEL')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(
+              'CANCEL',
+              style: GoogleFonts.plusJakartaSans(color: CyberTheme.textMuted),
+            ),
+          ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('SIGN OUT', style: TextStyle(color: CyberTheme.coral, fontWeight: FontWeight.bold)),
+            child: Text(
+              'SIGN OUT',
+              style: GoogleFonts.plusJakartaSans(
+                color: CyberTheme.coral,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
           ),
         ],
       ),
@@ -79,68 +104,28 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
     }
   }
 
-  void _showSpecsDialog() {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: CyberTheme.surface,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-          side: const BorderSide(color: CyberTheme.borderAccent),
-        ),
-        title: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(6),
-              decoration: const BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: CyberTheme.shardGradient,
-              ),
-              child: const Icon(Icons.tune, color: Colors.white, size: 16),
-            ),
-            const SizedBox(width: 10),
-            const Text(
-              'Wind Sculpture Specs',
-              style: TextStyle(color: CyberTheme.textPrimary, fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildSpecRow('Flow', 'stream'),
-            _buildSpecRow('Material', 'pearl'),
-            _buildSpecRow('Detail', 'balanced'),
-            _buildSpecRow('Interaction', 'repel'),
-            _buildSpecRow('Chromatic Aberration', '0.0075 (Cyan / Coral)'),
-            const Divider(color: CyberTheme.border, height: 20),
-            _buildSpecRow('Background Color', '#120F17'),
-            _buildSpecRow('Shard Color', '#896ABD'),
-            _buildSpecRow('Accent Color', '#A855F7'),
-          ],
-        ),
-        actions: [
-          CyberButton(
-            variant: CyberButtonVariant.whitePill,
-            height: 34,
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            onTap: () => Navigator.pop(ctx),
-            child: const Text('Close'),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildSpecRow(String label, String value) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
+      padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: const TextStyle(color: CyberTheme.textMuted, fontSize: 12)),
-          Text(value, style: const TextStyle(color: CyberTheme.textPrimary, fontSize: 12, fontFamily: 'monospace', fontWeight: FontWeight.w700)),
+          Text(
+            label,
+            style: GoogleFonts.plusJakartaSans(
+              color: CyberTheme.textMuted,
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          Text(
+            value,
+            style: GoogleFonts.jetBrainsMono(
+              color: CyberTheme.textPrimary,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
         ],
       ),
     );
@@ -173,13 +158,13 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
         _receiverProgress = 1.0;
       });
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
+        SnackBar(
           content: Text(
             'INCOMING ASSET SECURELY RECEIVED & VERIFIED IN LEDGER.',
-            style: TextStyle(fontFamily: 'monospace', fontWeight: FontWeight.bold),
+            style: GoogleFonts.jetBrainsMono(fontWeight: FontWeight.bold),
           ),
           backgroundColor: CyberTheme.emerald,
-          duration: Duration(seconds: 4),
+          duration: const Duration(seconds: 4),
         ),
       );
     };
@@ -188,101 +173,107 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
       backgroundColor: CyberTheme.background,
       body: Stack(
         children: [
-          // 1. 3D Prismatic Shards ("Wind Sculpture") Interactive Engine
+          // 1. Static 3D Prismatic Shards ("Wind Sculpture") Interactive Engine
           const Positioned.fill(
             child: ShardsBackground(),
           ),
 
-          // 2. Scrollable Page Content
+          // 2. Clean Home Landing Page Content
           SafeArea(
-            child: SingleChildScrollView(
-              controller: _scrollController,
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-              child: Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 1300),
-                  child: Column(
-                    children: [
-                      // Floating Glass Navbar (React Bits style)
-                      _buildFloatingNavbar(userProfile, peers.length, autoAccept),
-                      const SizedBox(height: 36),
-
-                      // Dribbble SaaS Hero Section
-                      _buildHeroSection(),
-                      const SizedBox(height: 44),
-
-                      // Flagship Bento Grid (Live Functional Engines)
-                      LayoutBuilder(
-                        builder: (context, constraints) {
-                          if (constraints.maxWidth > 920) {
-                            return Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Expanded(
-                                  flex: 6,
-                                  child: _buildProvenanceStudio(provenanceState),
-                                ),
-                                const SizedBox(width: 24),
-                                Expanded(
-                                  flex: 6,
-                                  child: _buildSecureTransferRadar(
-                                    peers: peers,
-                                    activeStatus: activeStatus,
-                                    progressState: progressState,
-                                    incomingRequest: incomingRequest,
-                                  ),
-                                ),
-                              ],
-                            );
-                          } else {
-                            return Column(
-                              children: [
-                                _buildProvenanceStudio(provenanceState),
-                                const SizedBox(height: 24),
-                                _buildSecureTransferRadar(
-                                  peers: peers,
-                                  activeStatus: activeStatus,
-                                  progressState: progressState,
-                                  incomingRequest: incomingRequest,
-                                ),
-                              ],
-                            );
-                          }
-                        },
-                      ),
-                      const SizedBox(height: 28),
-
-                      // Bottom Bento Card: Immutable Zero-Trust Ledger
-                      _buildLedgerAuditTrail(),
-                      const SizedBox(height: 40),
-
-                      // Footer
-                      _buildFooter(),
-                      const SizedBox(height: 20),
-                    ],
+            child: Column(
+              children: [
+                // Floating Glass Navbar (React Bits style)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 1300),
+                      child: _buildFloatingNavbar(userProfile, peers.length, autoAccept),
+                    ),
                   ),
                 ),
-              ),
+
+                // Floating Incoming Transfer Alert Banner
+                if (incomingRequest != null)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+                    child: Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 900),
+                        child: _buildIncomingTransferBanner(incomingRequest),
+                      ),
+                    ),
+                  ),
+
+                // Clean Centered Hero Quote (Landing Page with Quote Alone)
+                Expanded(
+                  child: Center(
+                    child: SingleChildScrollView(
+                      controller: _scrollController,
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 920),
+                        child: _buildHeroSection(),
+                      ),
+                    ),
+                  ),
+                ),
+
+                // Minimal Clean Footer
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 1300),
+                      child: _buildFooter(),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
+
+          // 3. Functional Modal Deck Overlay (Opened from Navbar or CTA Buttons)
+          if (_activeModal != ActiveDeckModal.none)
+            _buildActiveModalOverlay(
+              provenanceState: provenanceState,
+              peers: peers,
+              activeStatus: activeStatus,
+              progressState: progressState,
+              incomingRequest: incomingRequest,
+            ),
         ],
       ),
     );
   }
 
-  Widget _buildNavLink(String title, VoidCallback onTap) {
+  Widget _buildNavLink(String title, ActiveDeckModal modal) {
+    final isActive = _activeModal == modal;
     return InkWell(
-      onTap: onTap,
+      onTap: () {
+        setState(() {
+          _activeModal = isActive ? ActiveDeckModal.none : modal;
+        });
+      },
       borderRadius: BorderRadius.circular(20),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+        decoration: BoxDecoration(
+          color: isActive ? CyberTheme.accentColor.withValues(alpha: 0.28) : Colors.transparent,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isActive ? CyberTheme.borderAccent : Colors.transparent,
+            width: 1,
+          ),
+        ),
         child: Text(
           title,
-          style: const TextStyle(
-            color: CyberTheme.textSecondary,
+          style: GoogleFonts.plusJakartaSans(
+            color: isActive ? Colors.white : CyberTheme.textSecondary,
             fontSize: 13,
-            fontWeight: FontWeight.w600,
-            letterSpacing: 0.2,
+            fontWeight: isActive ? FontWeight.w800 : FontWeight.w600,
+            letterSpacing: 0.3,
           ),
         ),
       ),
@@ -301,92 +292,105 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
       child: Row(
         children: [
           // Logo & Brand (React Bits / Project Kerberos)
-          Container(
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: CyberTheme.shardGradient,
-              boxShadow: [
-                BoxShadow(
-                  color: CyberTheme.accentColor.withValues(alpha: 0.4),
-                  blurRadius: 10,
-                  spreadRadius: 1,
+          InkWell(
+            onTap: () => setState(() => _activeModal = ActiveDeckModal.none),
+            borderRadius: BorderRadius.circular(100),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: CyberTheme.shardGradient,
+                    boxShadow: [
+                      BoxShadow(
+                        color: CyberTheme.accentColor.withValues(alpha: 0.45),
+                        blurRadius: 12,
+                        spreadRadius: 1,
+                      ),
+                    ],
+                  ),
+                  child: const Icon(Icons.all_inclusive_rounded, color: Colors.white, size: 18),
+                ),
+                const SizedBox(width: 10),
+                Text(
+                  'React Bits',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.2,
+                    color: CyberTheme.textPrimary,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: CyberTheme.accentColor.withValues(alpha: 0.22),
+                    borderRadius: BorderRadius.circular(100),
+                    border: Border.all(color: CyberTheme.borderAccent),
+                  ),
+                  child: Text(
+                    'KERBEROS',
+                    style: GoogleFonts.jetBrainsMono(
+                      fontSize: 8,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0.8,
+                      color: const Color(0xFFC084FC),
+                    ),
+                  ),
                 ),
               ],
-            ),
-            child: const Icon(Icons.all_inclusive_rounded, color: Colors.white, size: 18),
-          ),
-          const SizedBox(width: 10),
-          const Text(
-            'React Bits',
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 0.2,
-              color: CyberTheme.textPrimary,
-            ),
-          ),
-          const SizedBox(width: 6),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-            decoration: BoxDecoration(
-              color: CyberTheme.accentColor.withValues(alpha: 0.2),
-              borderRadius: BorderRadius.circular(100),
-              border: Border.all(color: CyberTheme.borderAccent),
-            ),
-            child: const Text(
-              'KERBEROS',
-              style: TextStyle(
-                fontSize: 8,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 0.8,
-                color: Color(0xFFC084FC),
-              ),
             ),
           ),
 
           const SizedBox(width: 16),
 
-          // Center Navigation Links (Matching Screenshot 1)
+          // Center Navigation Links (Each triggers its functional modal deck)
           Expanded(
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                _buildNavLink('Studio', () => _scrollToSection(220)),
-                const SizedBox(width: 14),
-                _buildNavLink('Radar', () => _scrollToSection(600)),
-                const SizedBox(width: 14),
-                _buildNavLink('Ledger', () => _scrollToSection(950)),
-                const SizedBox(width: 14),
-                _buildNavLink('Wind Specs', _showSpecsDialog),
+                _buildNavLink('Studio', ActiveDeckModal.studio),
+                const SizedBox(width: 8),
+                _buildNavLink('Radar', ActiveDeckModal.radar),
+                const SizedBox(width: 8),
+                _buildNavLink('Ledger', ActiveDeckModal.ledger),
+                const SizedBox(width: 8),
+                _buildNavLink('Wind Specs', ActiveDeckModal.specs),
               ],
             ),
           ),
 
           // Telemetry Peer Counter
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-            decoration: BoxDecoration(
-              color: CyberTheme.surfaceElevated,
-              borderRadius: BorderRadius.circular(100),
-              border: Border.all(color: CyberTheme.border),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.wifi_tethering, size: 12, color: CyberTheme.cyan),
-                const SizedBox(width: 5),
-                Text(
-                  '$activePeersCount ONLINE',
-                  style: const TextStyle(
-                    fontSize: 9,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.6,
-                    color: CyberTheme.textPrimary,
+          InkWell(
+            onTap: () => setState(() => _activeModal = ActiveDeckModal.radar),
+            borderRadius: BorderRadius.circular(100),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: CyberTheme.surfaceElevated,
+                borderRadius: BorderRadius.circular(100),
+                border: Border.all(color: CyberTheme.border),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.wifi_tethering, size: 12, color: CyberTheme.cyan),
+                  const SizedBox(width: 5),
+                  Text(
+                    '$activePeersCount ONLINE',
+                    style: GoogleFonts.jetBrainsMono(
+                      fontSize: 9,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.6,
+                      color: CyberTheme.textPrimary,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
           const SizedBox(width: 8),
@@ -395,7 +399,7 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
             decoration: BoxDecoration(
-              color: autoAccept ? CyberTheme.emerald.withValues(alpha: 0.15) : CyberTheme.surfaceElevated,
+              color: autoAccept ? CyberTheme.emerald.withValues(alpha: 0.18) : CyberTheme.surfaceElevated,
               borderRadius: BorderRadius.circular(100),
               border: Border.all(color: autoAccept ? CyberTheme.borderEmerald : CyberTheme.border),
             ),
@@ -404,7 +408,7 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
               children: [
                 Text(
                   autoAccept ? 'AUTO: ON' : 'AUTO: OFF',
-                  style: TextStyle(
+                  style: GoogleFonts.jetBrainsMono(
                     fontSize: 9,
                     fontWeight: FontWeight.w700,
                     color: autoAccept ? CyberTheme.emerald : CyberTheme.textMuted,
@@ -441,8 +445,8 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
                   backgroundColor: CyberTheme.accentColor.withValues(alpha: 0.3),
                   child: Text(
                     profile.initials,
-                    style: const TextStyle(
-                      color: Color(0xFFC084FC),
+                    style: GoogleFonts.plusJakartaSans(
+                      color: const Color(0xFFC084FC),
                       fontSize: 9,
                       fontWeight: FontWeight.bold,
                     ),
@@ -451,7 +455,7 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
                 const SizedBox(width: 6),
                 Text(
                   profile.displayName,
-                  style: const TextStyle(
+                  style: GoogleFonts.plusJakartaSans(
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
                     color: CyberTheme.textPrimary,
@@ -468,7 +472,10 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
             height: 32,
             padding: const EdgeInsets.symmetric(horizontal: 14),
             onTap: _confirmSignOut,
-            child: const Text('Sign out'),
+            child: Text(
+              'Sign out',
+              style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
+            ),
           ),
         ],
       ),
@@ -476,106 +483,467 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
   }
 
   // ==========================================
-  // HERO SECTION (REACT BITS STYLE)
+  // FLOATING INCOMING TRANSFER ALERT BANNER
+  // ==========================================
+  Widget _buildIncomingTransferBanner(IncomingTransferRequest request) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+      decoration: BoxDecoration(
+        color: CyberTheme.surfaceElevated.withValues(alpha: 0.95),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: CyberTheme.emerald, width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: CyberTheme.emerald.withValues(alpha: 0.3),
+            blurRadius: 20,
+            spreadRadius: 2,
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: CyberTheme.emerald.withValues(alpha: 0.2),
+            ),
+            child: const Icon(Icons.wifi_tethering, color: CyberTheme.emerald, size: 20),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'INCOMING AIRDROP REQUEST',
+                  style: GoogleFonts.plusJakartaSans(
+                    color: CyberTheme.emerald,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 0.8,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Agent ${request.senderName} (${request.senderEmail.isNotEmpty ? request.senderEmail : request.senderId}) wants to stream an encrypted asset.',
+                  style: GoogleFonts.plusJakartaSans(
+                    color: CyberTheme.textPrimary,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 14),
+          CyberButton(
+            variant: CyberButtonVariant.danger,
+            height: 32,
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            onTap: () {
+              ref.read(webRtcServiceProvider).declineIncomingTransfer(request.senderId);
+              ref.read(incomingTransferNotifierProvider.notifier).clear();
+            },
+            child: const Text('DECLINE'),
+          ),
+          const SizedBox(width: 8),
+          CyberButton(
+            variant: CyberButtonVariant.emerald,
+            height: 32,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            onTap: () {
+              ref.read(webRtcServiceProvider).acceptIncomingTransfer(request.senderId, request.offerPayload);
+              setState(() => _activeModal = ActiveDeckModal.radar);
+            },
+            child: const Text('ACCEPT'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ==========================================
+  // HERO SECTION (CLEAN LANDING PAGE WITH QUOTE ALONE)
   // ==========================================
   Widget _buildHeroSection() {
     return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        // Announcement Badge Pill (Matching Screenshot 1)
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-          decoration: BoxDecoration(
-            color: const Color(0x22A855F7),
-            borderRadius: BorderRadius.circular(100),
-            border: Border.all(color: const Color(0x44A855F7)),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(100),
+        // Announcement Badge Pill
+        InkWell(
+          onTap: () => setState(() => _activeModal = ActiveDeckModal.studio),
+          borderRadius: BorderRadius.circular(100),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+            decoration: BoxDecoration(
+              color: const Color(0x33A855F7),
+              borderRadius: BorderRadius.circular(100),
+              border: Border.all(color: CyberTheme.borderAccent),
+              boxShadow: [
+                BoxShadow(
+                  color: CyberTheme.accentColor.withValues(alpha: 0.25),
+                  blurRadius: 14,
                 ),
-                child: const Text(
-                  'NEW',
-                  style: TextStyle(
-                    color: Color(0xFF120F17),
-                    fontSize: 9,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 0.5,
+              ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(100),
+                  ),
+                  child: Text(
+                    'NEW',
+                    style: GoogleFonts.plusJakartaSans(
+                      color: const Color(0xFF0C0814),
+                      fontSize: 9,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0.6,
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 9),
-              const Text(
-                'Creative Components // Digital Provenance',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xFFE2E8F0),
+                const SizedBox(width: 10),
+                Text(
+                  'Creative Components // Digital Provenance',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: const Color(0xFFF3E8FF),
+                  ),
                 ),
+                const SizedBox(width: 6),
+                const Icon(Icons.arrow_forward_ios, size: 9, color: CyberTheme.shardColor),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 32),
+
+        // Bold Crisp Modern Sans Headline (The Hero Quote Alone)
+        Text(
+          "Don't touch them, they are pretty sharp!\nHardware-Sealed Digital Originals.",
+          textAlign: TextAlign.center,
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 46,
+            fontWeight: FontWeight.w900,
+            letterSpacing: -1.4,
+            color: Colors.white,
+            height: 1.15,
+            shadows: [
+              Shadow(
+                color: CyberTheme.accentColor.withValues(alpha: 0.6),
+                blurRadius: 36,
               ),
-              const SizedBox(width: 6),
-              const Icon(Icons.arrow_forward_ios, size: 9, color: CyberTheme.textMuted),
             ],
           ),
         ),
         const SizedBox(height: 20),
 
-        // Bold Crisp Modern Sans Headline (Matching Screenshot 1)
-        const Text(
-          "Don't touch them, they are pretty sharp!\nHardware-Sealed Digital Originals.",
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            fontSize: 40,
-            fontWeight: FontWeight.w900,
-            letterSpacing: -1.0,
-            color: Colors.white,
-            height: 1.16,
-          ),
-        ),
-        const SizedBox(height: 14),
-
         // Subtitle
         ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 720),
-          child: const Text(
+          child: Text(
             'Interactive 3D Prismatic Shards protecting true digital originals. Seal assets with C2PA hardware manifests, extract perceptual hash vectors, and stream encrypted payloads directly between peers over WebRTC DTLS tunnels.',
             textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 14,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 15,
               fontWeight: FontWeight.w400,
-              height: 1.6,
+              height: 1.65,
               color: CyberTheme.textSecondary,
             ),
           ),
         ),
-        const SizedBox(height: 24),
+        const SizedBox(height: 32),
 
-        // Hero Action Buttons (Solid White Pill + Translucent Glass Pill)
+        // Hero Action Buttons
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             CyberButton(
               variant: CyberButtonVariant.whitePill,
-              height: 44,
+              height: 46,
               padding: const EdgeInsets.symmetric(horizontal: 28),
               icon: Icons.upload_file,
-              onTap: _pickAndIngestFile,
-              child: const Text('Get started'),
+              onTap: () => setState(() => _activeModal = ActiveDeckModal.studio),
+              child: Text(
+                'Get started',
+                style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800),
+              ),
             ),
-            const SizedBox(width: 14),
+            const SizedBox(width: 16),
             CyberButton(
               variant: CyberButtonVariant.glassPill,
-              height: 44,
+              height: 46,
               padding: const EdgeInsets.symmetric(horizontal: 24),
               icon: Icons.radar,
-              onTap: () => _scrollToSection(600),
-              child: const Text('Learn more'),
+              onTap: () => setState(() => _activeModal = ActiveDeckModal.radar),
+              child: Text(
+                'Launch Radar',
+                style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
+              ),
             ),
           ],
+        ),
+        const SizedBox(height: 36),
+
+        // Sleek Quick Engine Jump Pills
+        Wrap(
+          alignment: WrapAlignment.center,
+          spacing: 12,
+          runSpacing: 10,
+          children: [
+            _buildQuickActionBadge('Studio // Ingest & Seal', Icons.fingerprint, () => setState(() => _activeModal = ActiveDeckModal.studio)),
+            _buildQuickActionBadge('Radar // P2P AirDrop', Icons.wifi_tethering, () => setState(() => _activeModal = ActiveDeckModal.radar)),
+            _buildQuickActionBadge('Ledger // Audit Trail', Icons.lock_clock, () => setState(() => _activeModal = ActiveDeckModal.ledger)),
+            _buildQuickActionBadge('Specs // 3D Sculpture', Icons.tune, () => setState(() => _activeModal = ActiveDeckModal.specs)),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildQuickActionBadge(String label, IconData icon, VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(100),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+        decoration: BoxDecoration(
+          color: CyberTheme.surfaceElevated.withValues(alpha: 0.7),
+          borderRadius: BorderRadius.circular(100),
+          border: Border.all(color: CyberTheme.border),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 13, color: CyberTheme.shardColor),
+            const SizedBox(width: 7),
+            Text(
+              label,
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: CyberTheme.textSecondary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ==========================================
+  // FUNCTIONAL MODAL DECK OVERLAY
+  // ==========================================
+  Widget _buildActiveModalOverlay({
+    required AsyncValue<dynamic> provenanceState,
+    required List<Map<String, dynamic>> peers,
+    required String activeStatus,
+    required AsyncValue<double> progressState,
+    required IncomingTransferRequest? incomingRequest,
+  }) {
+    Widget content;
+    String title;
+    IconData icon;
+    String badge;
+
+    switch (_activeModal) {
+      case ActiveDeckModal.studio:
+        title = 'PROVENANCE STUDIO';
+        icon = Icons.fingerprint;
+        badge = 'C2PA SEED & MANIFEST';
+        content = _buildProvenanceStudio(provenanceState);
+        break;
+      case ActiveDeckModal.radar:
+        title = 'ENCLAVE RADAR';
+        icon = Icons.wifi_tethering;
+        badge = 'WEBRTC DTLS 1.3 / SCTP';
+        content = _buildSecureTransferRadar(
+          peers: peers,
+          activeStatus: activeStatus,
+          progressState: progressState,
+          incomingRequest: incomingRequest,
+        );
+        break;
+      case ActiveDeckModal.ledger:
+        title = 'IMMUTABLE ZERO-TRUST LEDGER';
+        icon = Icons.lock_clock;
+        badge = 'CRYPTOGRAPHIC AUDIT TRAIL';
+        content = _buildLedgerAuditTrail();
+        break;
+      case ActiveDeckModal.specs:
+        title = 'WIND SCULPTURE SPECS';
+        icon = Icons.tune;
+        badge = 'STATIC 3D PRISMATIC';
+        content = _buildSpecsModalContent();
+        break;
+      case ActiveDeckModal.none:
+        return const SizedBox.shrink();
+    }
+
+    return Positioned.fill(
+      child: Stack(
+        children: [
+          // Backdrop Blur & Dismissal Tap
+          Positioned.fill(
+            child: GestureDetector(
+              onTap: () => setState(() => _activeModal = ActiveDeckModal.none),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+                child: Container(
+                  color: const Color(0xCC080410),
+                ),
+              ),
+            ),
+          ),
+
+          // Centered Floating Modal Card
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: 1080,
+                  maxHeight: MediaQuery.of(context).size.height * 0.88,
+                ),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: CyberTheme.surfaceElevated.withValues(alpha: 0.96),
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(color: CyberTheme.borderAccent, width: 1.5),
+                    boxShadow: [
+                      BoxShadow(
+                        color: CyberTheme.accentColor.withValues(alpha: 0.35),
+                        blurRadius: 36,
+                        spreadRadius: 4,
+                      ),
+                    ],
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // Modal Header Bar
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
+                          decoration: const BoxDecoration(
+                            color: Color(0x44000000),
+                            border: Border(bottom: BorderSide(color: CyberTheme.border)),
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(7),
+                                decoration: const BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  gradient: CyberTheme.shardGradient,
+                                ),
+                                child: Icon(icon, color: Colors.white, size: 16),
+                              ),
+                              const SizedBox(width: 12),
+                              Text(
+                                title,
+                                style: GoogleFonts.plusJakartaSans(
+                                  color: CyberTheme.textPrimary,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 0.8,
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: CyberTheme.accentColor.withValues(alpha: 0.2),
+                                  borderRadius: BorderRadius.circular(100),
+                                  border: Border.all(color: CyberTheme.borderAccent),
+                                ),
+                                child: Text(
+                                  badge,
+                                  style: GoogleFonts.jetBrainsMono(
+                                    color: const Color(0xFFC084FC),
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                              const Spacer(),
+                              // Close (X) Button
+                              InkWell(
+                                onTap: () => setState(() => _activeModal = ActiveDeckModal.none),
+                                borderRadius: BorderRadius.circular(100),
+                                child: Container(
+                                  padding: const EdgeInsets.all(6),
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: CyberTheme.surface,
+                                    border: Border.all(color: CyberTheme.borderBright),
+                                  ),
+                                  child: const Icon(Icons.close_rounded, color: CyberTheme.textPrimary, size: 18),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        // Scrollable Modal Body
+                        Flexible(
+                          child: SingleChildScrollView(
+                            padding: const EdgeInsets.all(22),
+                            child: content,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSpecsModalContent() {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'WIND SCULPTURE // STATIC 3D PRISMATIC SHARDS',
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 13,
+            fontWeight: FontWeight.w800,
+            color: CyberTheme.shardColor,
+            letterSpacing: 0.8,
+          ),
+        ),
+        const SizedBox(height: 16),
+        _buildSpecRow('Geometry', 'Static Faceted Diamond Prisms'),
+        _buildSpecRow('Total Facets', '110 Crystalline Shards'),
+        _buildSpecRow('Stream Path', 'Golden-Ratio Flow Stream'),
+        _buildSpecRow('Chromatic Aberration', 'Dual-Pass Neon Cyan & Ruby Magenta'),
+        _buildSpecRow('Backdrop Aura', 'Deep Velvet Obsidian (#0C0814) + Radiant Amethyst (#7C3AED)'),
+        _buildSpecRow('Color Palette', 'Electric Orchid (#C084FC) / Saturated Purple (#A855F7)'),
+        _buildSpecRow('Provenance Engine', 'ED25519 C2PA Manifest & Perceptual Hash'),
+        _buildSpecRow('P2P Protocol', 'WebRTC DTLS 1.3 / SCTP DataChannels'),
+        const SizedBox(height: 24),
+        Align(
+          alignment: Alignment.centerRight,
+          child: CyberButton(
+            variant: CyberButtonVariant.whitePill,
+            height: 36,
+            padding: const EdgeInsets.symmetric(horizontal: 22),
+            onTap: () => setState(() => _activeModal = ActiveDeckModal.none),
+            child: const Text('Close'),
+          ),
         ),
       ],
     );
