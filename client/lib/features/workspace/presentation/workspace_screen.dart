@@ -34,7 +34,6 @@ class WorkspaceScreen extends ConsumerStatefulWidget {
 class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTickerProviderStateMixin {
   final TextEditingController _targetController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
-  late final PageController _pageController;
   bool _isDragging = false;
   double _receiverProgress = 0.0;
   bool _isReceiving = false;
@@ -44,7 +43,6 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
   @override
   void initState() {
     super.initState();
-    _pageController = PageController(initialPage: 0);
     _pulseController = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 2),
@@ -53,7 +51,6 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
 
   @override
   void dispose() {
-    _pageController.dispose();
     _targetController.dispose();
     _scrollController.dispose();
     _pulseController.dispose();
@@ -77,13 +74,6 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
           break;
       }
     });
-    if (_pageController.hasClients) {
-      _pageController.animateToPage(
-        index,
-        duration: const Duration(milliseconds: 400),
-        curve: Curves.easeInOutCubic,
-      );
-    }
   }
 
   Future<void> _confirmSignOut() async {
@@ -205,11 +195,10 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
                     ),
                   ),
 
-                // Horizontal Sliding PageView (Home, Studio, Radar, Ledger)
+                // Dedicated Screens (Instant non-sliding transition, Navbar indicator slides smoothly)
                 Expanded(
-                  child: PageView(
-                    controller: _pageController,
-                    physics: const NeverScrollableScrollPhysics(),
+                  child: IndexedStack(
+                    index: _activeNavIndex,
                     children: [
                       // Page 0: Home Page
                       _buildHomePage(),
@@ -804,62 +793,7 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
             ),
           ],
         ),
-        const SizedBox(height: 36),
-
-        // Sleek Quick Engine Jump Pills
-        Wrap(
-          alignment: WrapAlignment.center,
-          spacing: 12,
-          runSpacing: 10,
-          children: [
-            _buildQuickActionBadge(
-              'Studio // Ingest & Seal',
-              Icons.fingerprint,
-              () => _navigateToPage(1),
-            ),
-            _buildQuickActionBadge(
-              'Radar // P2P AirDrop',
-              Icons.wifi_tethering,
-              () => _navigateToPage(2),
-            ),
-            _buildQuickActionBadge(
-              'Ledger // Audit Trail',
-              Icons.lock_clock,
-              () => _navigateToPage(3),
-            ),
-          ],
-        ),
       ],
-    );
-  }
-
-  Widget _buildQuickActionBadge(String label, IconData icon, VoidCallback onTap) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(100),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-        decoration: BoxDecoration(
-          color: CyberTheme.surfaceElevated.withValues(alpha: 0.7),
-          borderRadius: BorderRadius.circular(100),
-          border: Border.all(color: CyberTheme.border),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 13, color: CyberTheme.shardColor),
-            const SizedBox(width: 7),
-            Text(
-              label,
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                color: CyberTheme.textSecondary,
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 
@@ -867,23 +801,629 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
   // DEDICATED FULL PAGES UNDER NAVBAR
   // ==========================================
   Widget _buildHomePage() {
-    return Column(
-      children: [
-        Expanded(
-          child: Center(
-            child: SingleChildScrollView(
-              controller: _scrollController,
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 1100),
-                child: _buildHeroSection(),
+    return SingleChildScrollView(
+      controller: _scrollController,
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1100),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _buildHeroSection(),
+              const SizedBox(height: 52),
+              _buildParallelDownloadBoxes(),
+              const SizedBox(height: 64),
+              _buildApplicationExplainerSection(),
+              const SizedBox(height: 56),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ==========================================
+  // PARALLEL CROSS-PLATFORM DOWNLOAD BOXES
+  // ==========================================
+  Widget _buildParallelDownloadBoxes() {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isDesktop = constraints.maxWidth >= 740;
+        final windowsCard = _buildDownloadCard(
+          platform: 'WINDOWS ENCLAVE',
+          title: 'Windows Desktop Client',
+          subtitle:
+              'Native hardware-accelerated enclave client for Windows 10 & 11. Binds direct hardware TPM root-of-trust C2PA manifests, computes real-time perceptual neural hashes, and activates zero-latency DTLS 1.3 P2P AirDrop transfer.',
+          badge: 'WIN 10 / 11 • x64 & ARM64',
+          badgeColor: const Color(0xFF38BDF8),
+          icon: Icons.desktop_windows_rounded,
+          iconColor: const Color(0xFF38BDF8),
+          buttonText: 'Download for Windows',
+          buttonIcon: Icons.download_rounded,
+          isPrimary: true,
+          specs: const ['v1.2.0-stable', 'Hardware TPM 2.0', 'DirectX 12 / AVX2', '48.6 MB'],
+          onDownload: () {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                behavior: SnackBarBehavior.floating,
+                backgroundColor: CyberTheme.surfaceElevated,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  side: const BorderSide(color: CyberTheme.borderAccent),
+                ),
+                content: Row(
+                  children: [
+                    const Icon(Icons.downloading_rounded, color: CyberTheme.accentColor, size: 22),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Windows Enclave Setup Wired',
+                            style: GoogleFonts.plusJakartaSans(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 13,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'The installer package endpoint is wired and ready for binary deployment.',
+                            style: GoogleFonts.plusJakartaSans(
+                              color: CyberTheme.textSecondary,
+                              fontSize: 11,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                duration: const Duration(seconds: 4),
+              ),
+            );
+          },
+        );
+
+        final mobileCard = _buildDownloadCard(
+          platform: 'MOBILE COMPANION',
+          title: 'Mobile Phone Node',
+          subtitle:
+              'Cross-platform companion app for iOS & Android. Ingest live camera captures directly into C2PA cryptographic envelopes, discover nearby desktops on the radar mesh, and stream peer payloads instantaneously.',
+          badge: 'ANDROID 11+ • iOS 16+ TESTFLIGHT',
+          badgeColor: const Color(0xFF34D399),
+          icon: Icons.smartphone_rounded,
+          iconColor: const Color(0xFF34D399),
+          buttonText: 'Download for Mobile',
+          buttonIcon: Icons.phone_android_rounded,
+          isPrimary: false,
+          specs: const ['v1.2.0-rc3', 'C2PA Camera Sensor Seal', 'Cross-Platform APK/IPA', '32.1 MB'],
+          onDownload: () {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                behavior: SnackBarBehavior.floating,
+                backgroundColor: CyberTheme.surfaceElevated,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  side: const BorderSide(color: CyberTheme.borderAccent),
+                ),
+                content: Row(
+                  children: [
+                    const Icon(Icons.phonelink_setup_rounded, color: CyberTheme.shardColor, size: 22),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Mobile Phone Companion Wired',
+                            style: GoogleFonts.plusJakartaSans(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 13,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Mobile distribution targets (APK & TestFlight bundle) wired for release.',
+                            style: GoogleFonts.plusJakartaSans(
+                              color: CyberTheme.textSecondary,
+                              fontSize: 11,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                duration: const Duration(seconds: 4),
+              ),
+            );
+          },
+        );
+
+        if (isDesktop) {
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: windowsCard),
+              const SizedBox(width: 24),
+              Expanded(child: mobileCard),
+            ],
+          );
+        } else {
+          return Column(
+            children: [
+              windowsCard,
+              const SizedBox(height: 20),
+              mobileCard,
+            ],
+          );
+        }
+      },
+    );
+  }
+
+  Widget _buildDownloadCard({
+    required String platform,
+    required String title,
+    required String subtitle,
+    required String badge,
+    required Color badgeColor,
+    required IconData icon,
+    required Color iconColor,
+    required String buttonText,
+    required IconData buttonIcon,
+    required bool isPrimary,
+    required List<String> specs,
+    required VoidCallback onDownload,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(28),
+      decoration: BoxDecoration(
+        color: const Color(0x18FFFFFF),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: const Color(0x30FFFFFF), width: 1.2),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x35000000),
+            blurRadius: 28,
+            offset: Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Top Platform Row & Tag
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: iconColor.withValues(alpha: 0.15),
+                  border: Border.all(color: iconColor.withValues(alpha: 0.35)),
+                ),
+                child: Icon(icon, color: iconColor, size: 24),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: badgeColor.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(100),
+                  border: Border.all(color: badgeColor.withValues(alpha: 0.35)),
+                ),
+                child: Text(
+                  badge,
+                  style: GoogleFonts.jetBrainsMono(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    color: badgeColor,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+
+          // Title
+          Text(
+            title,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 21,
+              fontWeight: FontWeight.w800,
+              color: Colors.white,
+              letterSpacing: -0.4,
+            ),
+          ),
+          const SizedBox(height: 8),
+
+          // Description
+          Text(
+            subtitle,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 13,
+              fontWeight: FontWeight.w400,
+              height: 1.55,
+              color: CyberTheme.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 20),
+
+          // Technical Specs chips
+          Wrap(
+            spacing: 8,
+            runSpacing: 6,
+            children: specs.map((spec) {
+              return Container(
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                decoration: BoxDecoration(
+                  color: const Color(0x12FFFFFF),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0x1CFFFFFF)),
+                ),
+                child: Text(
+                  spec,
+                  style: GoogleFonts.jetBrainsMono(
+                    fontSize: 10,
+                    color: CyberTheme.textMuted,
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+          const SizedBox(height: 24),
+
+          // Action Button
+          SizedBox(
+            width: double.infinity,
+            child: CyberButton(
+              variant: isPrimary ? CyberButtonVariant.whitePill : CyberButtonVariant.glassPill,
+              height: 44,
+              icon: buttonIcon,
+              onTap: onDownload,
+              child: Text(
+                buttonText,
+                style: GoogleFonts.plusJakartaSans(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 13,
+                ),
               ),
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  // ==========================================
+  // APPLICATION EXPLAINER SECTION (WHAT THE APP DOES)
+  // ==========================================
+  Widget _buildApplicationExplainerSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Section Header
+        Center(
+          child: Column(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+                decoration: BoxDecoration(
+                  color: const Color(0x22C084FC),
+                  borderRadius: BorderRadius.circular(100),
+                  border: Border.all(color: CyberTheme.borderAccent),
+                ),
+                child: Text(
+                  'SECURITY PROTOCOLS & CORE CAPABILITIES',
+                  style: GoogleFonts.jetBrainsMono(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                    color: const Color(0xFFE9D5FF),
+                    letterSpacing: 1.2,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'What is Project Kerberos?',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 34,
+                  fontWeight: FontWeight.w900,
+                  color: Colors.white,
+                  letterSpacing: -1.0,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 12),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 760),
+                child: Text(
+                  'Project Kerberos is a decentralized, zero-trust digital provenance ecosystem. In an era saturated with generative AI, deepfakes, and untraceable media manipulation, Kerberos establishes an unbreakable cryptographic chain of custody from capture to peer transfer without relying on third-party cloud servers.',
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w400,
+                    color: CyberTheme.textSecondary,
+                    height: 1.6,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 36, vertical: 14),
-          child: _buildFooter(),
+        const SizedBox(height: 36),
+
+        // Three Core Pillars (Responsive cards)
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final isWide = constraints.maxWidth >= 900;
+            final pillar1 = _buildFeaturePillarCard(
+              number: '01',
+              title: 'C2PA Hardware Manifest Sealing',
+              badge: 'STUDIO INGESTION',
+              icon: Icons.fingerprint_rounded,
+              accentColor: const Color(0xFFC084FC),
+              description:
+                  'Every digital asset ingested into the Studio receives an immutable cryptographic manifest bound to hardware identity. Kerberos generates cryptographic certificate chains (SHA-256 / Ed25519) that assert exact authorship, device signatures, and capture timestamps—guaranteeing tamper evidence against synthetic modification.',
+            );
+
+            final pillar2 = _buildFeaturePillarCard(
+              number: '02',
+              title: 'Direct Peer-to-Peer AirDrop Radar',
+              badge: 'WEBRTC DTLS 1.3',
+              icon: Icons.wifi_tethering_rounded,
+              accentColor: const Color(0xFF34D399),
+              description:
+                  'Eliminate the risks of uploading confidential media to third-party cloud intermediaries. Kerberos uses peer signaling to discover authenticated desktop and mobile nodes, establishing point-to-point DTLS 1.3 encrypted WebRTC data channels for instantaneous, zero-retention raw binary streaming.',
+            );
+
+            final pillar3 = _buildFeaturePillarCard(
+              number: '03',
+              title: 'Perceptual Hash & Audit Ledger',
+              badge: 'IMMUTABLE AUDIT TRAIL',
+              icon: Icons.lock_clock_rounded,
+              accentColor: const Color(0xFF38BDF8),
+              description:
+                  'Minor pixel cropping or compression is immediately distinguished from malicious content tampering. The engine extracts a 256-cell multi-band perceptual hash matrix and permanently appends every transfer handshake into a local cryptographic audit ledger.',
+            );
+
+            if (isWide) {
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(child: pillar1),
+                  const SizedBox(width: 18),
+                  Expanded(child: pillar2),
+                  const SizedBox(width: 18),
+                  Expanded(child: pillar3),
+                ],
+              );
+            } else {
+              return Column(
+                children: [
+                  pillar1,
+                  const SizedBox(height: 16),
+                  pillar2,
+                  const SizedBox(height: 16),
+                  pillar3,
+                ],
+              );
+            }
+          },
+        ),
+        const SizedBox(height: 36),
+
+        // Step-by-Step Workflow Banner
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
+          decoration: BoxDecoration(
+            color: const Color(0x14FFFFFF),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: const Color(0x28FFFFFF), width: 1.0),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.sync_alt_rounded, color: CyberTheme.shardColor, size: 20),
+                  const SizedBox(width: 10),
+                  Text(
+                    'HOW IT WORKS IN PRACTICE',
+                    style: GoogleFonts.jetBrainsMono(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      color: CyberTheme.textPrimary,
+                      letterSpacing: 1.0,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 18),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final isWide = constraints.maxWidth >= 720;
+                  final step1 = _buildWorkflowStep(
+                    step: 'STEP 1',
+                    action: 'Ingest & Certify',
+                    detail: 'Drag & drop media into Provenance Studio to bind cryptographic hardware manifests.',
+                  );
+                  final step2 = _buildWorkflowStep(
+                    step: 'STEP 2',
+                    action: 'Discover & AirDrop',
+                    detail: 'Locate nearby Windows and Mobile nodes on Radar and beam encrypted payloads directly.',
+                  );
+                  final step3 = _buildWorkflowStep(
+                    step: 'STEP 3',
+                    action: 'Verify & Audit',
+                    detail: 'Inspect perceptual neural hashes and review tamper-evident logs on the Zero-Trust Ledger.',
+                  );
+
+                  if (isWide) {
+                    return Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(child: step1),
+                        const SizedBox(width: 20),
+                        Expanded(child: step2),
+                        const SizedBox(width: 20),
+                        Expanded(child: step3),
+                      ],
+                    );
+                  } else {
+                    return Column(
+                      children: [
+                        step1,
+                        const SizedBox(height: 14),
+                        step2,
+                        const SizedBox(height: 14),
+                        step3,
+                      ],
+                    );
+                  }
+                },
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFeaturePillarCard({
+    required String number,
+    required String title,
+    required String badge,
+    required IconData icon,
+    required Color accentColor,
+    required String description,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: const Color(0x14FFFFFF),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0x28FFFFFF), width: 1.0),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x2A000000),
+            blurRadius: 20,
+            offset: Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: accentColor.withValues(alpha: 0.15),
+                  border: Border.all(color: accentColor.withValues(alpha: 0.35)),
+                ),
+                child: Icon(icon, color: accentColor, size: 22),
+              ),
+              Text(
+                number,
+                style: GoogleFonts.jetBrainsMono(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w900,
+                  color: const Color(0x35FFFFFF),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
+              color: accentColor.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Text(
+              badge,
+              style: GoogleFonts.jetBrainsMono(
+                fontSize: 9,
+                fontWeight: FontWeight.w800,
+                color: accentColor,
+                letterSpacing: 0.6,
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            title,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 17,
+              fontWeight: FontWeight.w800,
+              color: Colors.white,
+              letterSpacing: -0.3,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            description,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 12.5,
+              fontWeight: FontWeight.w400,
+              color: CyberTheme.textSecondary,
+              height: 1.6,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWorkflowStep({
+    required String step,
+    required String action,
+    required String detail,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          step,
+          style: GoogleFonts.jetBrainsMono(
+            fontSize: 10,
+            fontWeight: FontWeight.w800,
+            color: CyberTheme.shardColor,
+            letterSpacing: 1.0,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          action,
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 14,
+            fontWeight: FontWeight.w800,
+            color: Colors.white,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          detail,
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 12,
+            fontWeight: FontWeight.w400,
+            color: CyberTheme.textSecondary,
+            height: 1.45,
+          ),
         ),
       ],
     );
@@ -1022,9 +1562,6 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
               child,
 
               const SizedBox(height: 32),
-
-              // Page Footer
-              _buildFooter(),
             ],
           ),
         ),
@@ -1914,27 +2451,7 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
     );
   }
 
-  Widget _buildFooter() {
-    return Column(
-      children: [
-        const Divider(color: CyberTheme.border, thickness: 1),
-        const SizedBox(height: 16),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            const Text(
-              'PROJECT KERBEROS // THE LAST ORIGINAL',
-              style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 1.5, color: CyberTheme.textMuted),
-            ),
-            Text(
-              'C2PA STANDARD • AES-256-GCM • WEBRTC DTLS 1.3 • SUPABASE REALTIME',
-              style: TextStyle(fontSize: 9, color: CyberTheme.textMuted.withValues(alpha: 0.8), letterSpacing: 0.8),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
+
 
   Future<void> _pickAndIngestFile() async {
     final result = await FilePicker.platform.pickFiles();
