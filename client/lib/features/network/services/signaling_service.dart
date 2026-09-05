@@ -10,7 +10,7 @@ class SignalingService {
   RealtimeChannel? _channel;
   
   // Callbacks for WebRTC layer
-  Function(Map<String, dynamic> offer, String senderId)? onOfferReceived;
+  Function(Map<String, dynamic> offer, String senderId, String senderName, String senderEmail)? onOfferReceived;
   Function(Map<String, dynamic> answer)? onAnswerReceived;
   Function(Map<String, dynamic> iceCandidate)? onIceCandidateReceived;
   Function(String error)? onRemoteErrorReceived;
@@ -22,10 +22,33 @@ class SignalingService {
   List<Map<String, dynamic>> currentPeers = [];
 
   final String _myUuid;
+  String _displayName;
+  String _userEmail;
   bool _isSubscribed = false;
   Completer<void> _subCompleter = Completer<void>();
 
-  SignalingService(this._supabase, this._myUuid);
+  SignalingService(
+    this._supabase,
+    this._myUuid, {
+    String displayName = 'Agent',
+    String userEmail = '',
+  })  : _displayName = displayName,
+        _userEmail = userEmail;
+
+  void updateIdentity(String displayName, String email) {
+    _displayName = displayName;
+    _userEmail = email;
+    if (_isSubscribed && _channel != null) {
+      final platformName = kIsWeb ? 'Kerberos Web' : 'Kerberos Windows';
+      _channel!.track({
+        'uuid': _myUuid,
+        'platform': platformName,
+        'display_name': _displayName,
+        'email': _userEmail,
+        'online_at': DateTime.now().toIso8601String(),
+      });
+    }
+  }
 
   List<Map<String, dynamic>> getDiscoveredPeers() {
     if (_channel == null) return currentPeers;
@@ -39,6 +62,8 @@ class SignalingService {
             discovered.add({
               'uuid': payload['uuid'],
               'platform': payload['platform'] ?? 'Kerberos Agent',
+              'display_name': payload['display_name'] ?? payload['name'] ?? 'Agent',
+              'email': payload['email'] ?? '',
               'online_at': payload['online_at'],
             });
           }
@@ -52,7 +77,7 @@ class SignalingService {
   }
 
   void connect() {
-    print(">> [Signaling] Booting Supabase enclave for UUID: $_myUuid");
+    print(">> [Signaling] Booting Supabase enclave for UUID: $_myUuid (Identity: $_displayName <$_userEmail>)");
     _channel = _supabase.channel('kerberos_enclave');
 
     // 1. Listen for Peer Discovery (Presence)
@@ -67,6 +92,8 @@ class SignalingService {
             discoveredPeers.add({
               'uuid': payload['uuid'],
               'platform': payload['platform'] ?? 'Kerberos Agent',
+              'display_name': payload['display_name'] ?? payload['name'] ?? 'Agent',
+              'email': payload['email'] ?? '',
               'online_at': payload['online_at'],
             });
           }
@@ -126,13 +153,15 @@ class SignalingService {
         }
 
         final senderId = msg['sender_id']?.toString() ?? 'unknown';
+        final senderName = msg['sender_name']?.toString() ?? 'Remote Agent';
+        final senderEmail = msg['sender_email']?.toString() ?? '';
 
-        print(">> [Signaling] MATCH! Dispatching '$type' signal from $senderId");
+        print(">> [Signaling] MATCH! Dispatching '$type' signal from $senderName ($senderId)");
 
         switch (type) {
           case 'offer':
-            print(">> [Signaling] Firing onOfferReceived for $senderId");
-            onOfferReceived?.call(signalPayload, senderId);
+            print(">> [Signaling] Firing onOfferReceived for $senderName ($senderId)");
+            onOfferReceived?.call(signalPayload, senderId, senderName, senderEmail);
             break;
           case 'answer':
             print(">> [Signaling] Firing onAnswerReceived");
@@ -163,6 +192,8 @@ class SignalingService {
         await _channel!.track({
           'uuid': _myUuid,
           'platform': platformName,
+          'display_name': _displayName,
+          'email': _userEmail,
           'online_at': DateTime.now().toIso8601String(),
         });
       } else if (status == RealtimeSubscribeStatus.closed || status == RealtimeSubscribeStatus.channelError) {
@@ -193,11 +224,13 @@ class SignalingService {
       }
     }
 
-    print(">> [Signaling] Outbound '$type' signal to $targetId");
+    print(">> [Signaling] Outbound '$type' signal to $targetId from $_displayName");
     final response = await _channel!.sendBroadcastMessage(
       event: 'signal',
       payload: {
         'sender_id': _myUuid,
+        'sender_name': _displayName,
+        'sender_email': _userEmail,
         'target_id': targetId,
         'signal_type': type,
         'type': type,

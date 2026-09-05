@@ -57,6 +57,12 @@ class LedgerService {
     return _box.get(id);
   }
 
+  /// Retrieves all sealed records in the ledger.
+  List<ProvenanceRecord> getHistory() {
+    if (!_box.isOpen) return [];
+    return _box.values.toList().reversed.toList();
+  }
+
   /// Retrieves the most recently sealed asset for quick P2P transfer.
   ProvenanceRecord? getLatestRecord() {
     if (!_box.isOpen || _box.isEmpty) return null;

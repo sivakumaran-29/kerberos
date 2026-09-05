@@ -8,6 +8,8 @@ import '../services/signaling_service.dart';
 import '../services/webrtc_service.dart';
 import '../../../main.dart'; // for ledgerProvider
 
+import '../../auth/providers/auth_providers.dart';
+
 part 'network_providers.g.dart';
 
 String? _cachedSessionId;
@@ -24,11 +26,15 @@ String getPersistentDeviceId() {
 
 class IncomingTransferRequest {
   final String senderId;
+  final String senderName;
+  final String senderEmail;
   final Map<String, dynamic> offerPayload;
   final DateTime timestamp;
 
   const IncomingTransferRequest({
     required this.senderId,
+    required this.senderName,
+    required this.senderEmail,
     required this.offerPayload,
     required this.timestamp,
   });
@@ -53,13 +59,13 @@ String getSupabaseAnonKey() {
 @Riverpod(keepAlive: true)
 SignalingService signalingService(SignalingServiceRef ref) {
   final myUuid = getPersistentDeviceId();
+  final profile = ref.watch(userProfileProvider);
   
   final service = SignalingService(
-    SupabaseClient(
-      getSupabaseUrl(),
-      getSupabaseAnonKey(),
-    ),
-    myUuid
+    Supabase.instance.client,
+    myUuid,
+    displayName: profile.displayName,
+    userEmail: profile.email,
   );
   
   service.connect();
@@ -110,9 +116,11 @@ class IncomingTransferNotifier extends _$IncomingTransferNotifier {
   @override
   IncomingTransferRequest? build() {
     final webrtc = ref.watch(webRtcServiceProvider);
-    webrtc.onIncomingOfferRequest = (senderId, payload) {
+    webrtc.onIncomingOfferRequest = (senderId, senderName, senderEmail, payload) {
       state = IncomingTransferRequest(
         senderId: senderId,
+        senderName: senderName,
+        senderEmail: senderEmail,
         offerPayload: payload,
         timestamp: DateTime.now(),
       );

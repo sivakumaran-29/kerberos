@@ -19,7 +19,7 @@ class WebRTCService {
 
   // Auto-Accept toggle & incoming request hook
   bool autoAccept = false;
-  Function(String senderId, Map<String, dynamic> offerPayload)? onIncomingOfferRequest;
+  Function(String senderId, String senderName, String senderEmail, Map<String, dynamic> offerPayload)? onIncomingOfferRequest;
 
   // Lifecycle & Transfer Callbacks
   Function(Uint8List data)? onFileChunkReceived;
@@ -56,15 +56,15 @@ class WebRTCService {
   };
 
   WebRTCService(this._signaling) {
-    _signaling.onOfferReceived = (payload, senderId) {
-      print(">> [WebRTC] onOfferReceived triggered! senderId: $senderId, autoAccept: $autoAccept");
+    _signaling.onOfferReceived = (payload, senderId, senderName, senderEmail) {
+      print(">> [WebRTC] onOfferReceived triggered! sender: $senderName ($senderId), autoAccept: $autoAccept");
       if (autoAccept) {
         acceptIncomingTransfer(senderId, payload);
       } else {
-        onStatusUpdate?.call("Incoming handshake request from $senderId. Awaiting confirmation...");
+        onStatusUpdate?.call("Incoming handshake request from $senderName. Awaiting confirmation...");
         if (onIncomingOfferRequest != null) {
           print(">> [WebRTC] Triggering onIncomingOfferRequest callback...");
-          onIncomingOfferRequest!.call(senderId, payload);
+          onIncomingOfferRequest!.call(senderId, senderName, senderEmail, payload);
         } else {
           print(">> [WebRTC] Notice: onIncomingOfferRequest listener not registered yet. Auto-accepting to guarantee connection.");
           acceptIncomingTransfer(senderId, payload);
