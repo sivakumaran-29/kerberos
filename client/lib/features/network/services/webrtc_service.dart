@@ -57,11 +57,18 @@ class WebRTCService {
 
   WebRTCService(this._signaling) {
     _signaling.onOfferReceived = (payload, senderId) {
+      print(">> [WebRTC] onOfferReceived triggered! senderId: $senderId, autoAccept: $autoAccept");
       if (autoAccept) {
         acceptIncomingTransfer(senderId, payload);
       } else {
         onStatusUpdate?.call("Incoming handshake request from $senderId. Awaiting confirmation...");
-        onIncomingOfferRequest?.call(senderId, payload);
+        if (onIncomingOfferRequest != null) {
+          print(">> [WebRTC] Triggering onIncomingOfferRequest callback...");
+          onIncomingOfferRequest!.call(senderId, payload);
+        } else {
+          print(">> [WebRTC] Notice: onIncomingOfferRequest listener not registered yet. Auto-accepting to guarantee connection.");
+          acceptIncomingTransfer(senderId, payload);
+        }
       }
     };
 

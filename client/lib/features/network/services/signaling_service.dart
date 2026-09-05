@@ -33,7 +33,7 @@ class SignalingService {
       for (final client in state) {
         for (final presence in client.presences) {
           final payload = presence.payload;
-          if (payload['uuid'] != null && payload['uuid'] != _myUuid) {
+          if (payload['uuid'] != null && payload['uuid'].toString().toLowerCase() != _myUuid.toLowerCase()) {
             discovered.add({
               'uuid': payload['uuid'],
               'platform': payload['platform'] ?? 'Kerberos Agent',
@@ -61,7 +61,7 @@ class SignalingService {
       for (final client in state) {
         for (final presence in client.presences) {
           final payload = presence.payload;
-          if (payload['uuid'] != null && payload['uuid'] != _myUuid) {
+          if (payload['uuid'] != null && payload['uuid'].toString().toLowerCase() != _myUuid.toLowerCase()) {
             discoveredPeers.add({
               'uuid': payload['uuid'],
               'platform': payload['platform'] ?? 'Kerberos Agent',
@@ -78,28 +78,55 @@ class SignalingService {
     // 2. Listen for Secure Handshakes (Broadcast)
     _channel!.onBroadcast(
       event: 'signal',
-      callback: (payload) {
-        final targetId = payload['target_id'];
-        if (targetId != _myUuid) return; // Ignore signals not meant for us
+      callback: (Map<String, dynamic> raw) {
+        print(">> [Signaling] Broadcast payload received: $raw");
 
-        final type = payload['type'] as String;
-        final signalPayload = payload['payload'] as Map<String, dynamic>;
-        final senderId = payload['sender_id'] as String;
+        // Normalize payload in case realtime-client wraps or unwraps it
+        Map<String, dynamic> msg = raw;
+        if (raw.containsKey('payload') && raw['payload'] is Map<String, dynamic>) {
+          final inner = raw['payload'] as Map<String, dynamic>;
+          if (inner.containsKey('target_id') || inner.containsKey('type')) {
+            msg = inner;
+          }
+        }
 
-        print(">> [Signaling] Received '$type' signal from $senderId");
+        final rawTargetId = msg['target_id']?.toString();
+        if (rawTargetId == null) {
+          print(">> [Signaling] Broadcast ignored: missing 'target_id'. Msg: $msg");
+          return;
+        }
+
+        final targetId = rawTargetId.trim().toLowerCase();
+        final myId = _myUuid.trim().toLowerCase();
+
+        print(">> [Signaling] Checking targetId: '$targetId' vs myUuid: '$myId'");
+        if (targetId != myId) {
+          print(">> [Signaling] Signal not for us. Ignored.");
+          return;
+        }
+
+        final type = msg['type']?.toString();
+        final senderId = msg['sender_id']?.toString() ?? 'unknown';
+        final signalPayload = msg['payload'] is Map<String, dynamic>
+            ? msg['payload'] as Map<String, dynamic>
+            : <String, dynamic>{};
+
+        print(">> [Signaling] MATCH! Dispatching '$type' signal from $senderId");
 
         switch (type) {
           case 'offer':
+            print(">> [Signaling] Firing onOfferReceived for $senderId");
             onOfferReceived?.call(signalPayload, senderId);
             break;
           case 'answer':
+            print(">> [Signaling] Firing onAnswerReceived");
             onAnswerReceived?.call(signalPayload);
             break;
           case 'ice':
             onIceCandidateReceived?.call(signalPayload);
             break;
           case 'error':
-            onRemoteErrorReceived?.call(signalPayload['error'] as String? ?? 'Remote fault');
+            onRemoteErrorReceived?.call(signalPayload['error']?.toString() ?? 'Remote fault');
             break;
         }
       }
@@ -107,7 +134,7 @@ class SignalingService {
 
     // 3. Connect and broadcast our identity
     _channel!.subscribe((status, [error]) async {
-      print(">> [Signaling] Channel status: $status");
+      print(">> [Signaling] Channel subscription status: $status (error: $error)");
       if (status == RealtimeSubscribeStatus.subscribed) {
         final platformName = kIsWeb ? 'Kerberos Web' : 'Kerberos Windows';
         await _channel!.track({
@@ -129,7 +156,7 @@ class SignalingService {
       throw Exception("Zero-Trust Fault: Signaling channel not established.");
     }
 
-    print(">> [Signaling] Sending '$type' signal to $targetId");
+    print(">> [Signaling] Outbound '$type' signal to $targetId");
     await _channel!.sendBroadcastMessage(
       event: 'signal',
       payload: {

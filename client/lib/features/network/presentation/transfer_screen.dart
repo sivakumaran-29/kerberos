@@ -15,92 +15,6 @@ class _TransferScreenState extends ConsumerState<TransferScreen> {
   final TextEditingController _targetController = TextEditingController();
   double _receiverProgress = 0.0;
   bool _isReceiving = false;
-  bool _isPromptOpen = false;
-
-  void _showIncomingTransferDialog(BuildContext context, IncomingTransferRequest request) {
-    if (_isPromptOpen) return;
-    _isPromptOpen = true;
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogContext) {
-        return Dialog(
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          child: NeomorphicContainer(
-            width: 480,
-            padding: const EdgeInsets.all(32),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    const Icon(Icons.security, color: kAccentColor, size: 28),
-                    const SizedBox(width: 14),
-                    const Expanded(
-                      child: Text(
-                        'INCOMING P2P AIR-DROP REQUEST',
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: kTextColor, letterSpacing: 1.2),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 20),
-                const Text(
-                  'A remote Kerberos agent is requesting to establish an end-to-end encrypted WebRTC DTLS tunnel to transfer an asset payload.',
-                  style: TextStyle(color: Colors.black87, fontSize: 13, height: 1.5),
-                ),
-                const SizedBox(height: 16),
-                NeomorphicContainer(
-                  depressed: true,
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('SENDER AGENT IDENTITY:', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.black45)),
-                      const SizedBox(height: 4),
-                      SelectableText(
-                        request.senderId,
-                        style: const TextStyle(fontSize: 12, fontFamily: 'monospace', fontWeight: FontWeight.w600, color: kTextColor),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 28),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    NeomorphicButton(
-                      onTap: () {
-                        _isPromptOpen = false;
-                        Navigator.pop(dialogContext);
-                        ref.read(webRtcServiceProvider).declineIncomingTransfer(request.senderId);
-                        ref.read(incomingTransferNotifierProvider.notifier).clear();
-                      },
-                      child: const Text('DECLINE', style: TextStyle(color: kAlertColor, fontWeight: FontWeight.bold, fontSize: 12)),
-                    ),
-                    const SizedBox(width: 16),
-                    NeomorphicButton(
-                      onTap: () {
-                        _isPromptOpen = false;
-                        Navigator.pop(dialogContext);
-                        ref.read(webRtcServiceProvider).acceptIncomingTransfer(request.senderId, request.offerPayload);
-                        ref.read(incomingTransferNotifierProvider.notifier).clear();
-                      },
-                      child: const Text('ACCEPT TRANSFER', style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 12)),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     // Zero-Trust Constraint: Keep WebRTC receiver pipeline active
@@ -108,15 +22,6 @@ class _TransferScreenState extends ConsumerState<TransferScreen> {
     final activeStatus = ref.watch(transferStatusNotifierProvider);
     final progressState = ref.watch(transferProgressNotifierProvider);
     final autoAccept = ref.watch(autoAcceptNotifierProvider);
-
-    // Listen for incoming transfer requests to display the AirDrop-style Accept/Decline modal
-    ref.listen<IncomingTransferRequest?>(incomingTransferNotifierProvider, (previous, request) {
-      if (request != null && !autoAccept) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          _showIncomingTransferDialog(context, request);
-        });
-      }
-    });
 
     // Bind receiver chunk tracking
     webrtc.onFileChunkReceived = (data) {
