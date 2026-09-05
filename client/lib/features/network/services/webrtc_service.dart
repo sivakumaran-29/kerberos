@@ -28,8 +28,12 @@ class WebRTCService {
   };
 
   Future<void> _initializeConnection(String targetId) async {
-    _isRemoteDescriptionSet = false;
-    _remoteCandidatesQueue.clear();
+    // Only reset state if we are actually replacing an existing connection
+    if (_peerConnection != null) {
+      _isRemoteDescriptionSet = false;
+      _remoteCandidatesQueue.clear();
+      await _peerConnection?.close();
+    }
     _peerConnection = await createPeerConnection(_configuration);
 
     _peerConnection!.onIceCandidate = (RTCIceCandidate candidate) {
