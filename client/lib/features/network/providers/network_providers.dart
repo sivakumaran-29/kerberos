@@ -34,14 +34,30 @@ class IncomingTransferRequest {
   });
 }
 
+String getSupabaseUrl() {
+  final url = dotenv.env['SUPABASE_URL'];
+  if (url == null || url.trim().isEmpty || url.contains('mock')) {
+    return 'https://kyojroqhbvadzocdpnqn.supabase.co';
+  }
+  return url;
+}
+
+String getSupabaseAnonKey() {
+  final key = dotenv.env['SUPABASE_ANON_KEY'];
+  if (key == null || key.trim().isEmpty || key.contains('mock')) {
+    return 'sb_publishable_trcpGuxjaKxTlb8Sa-b8vA_qWRPTwTf';
+  }
+  return key;
+}
+
 @Riverpod(keepAlive: true)
 SignalingService signalingService(SignalingServiceRef ref) {
   final myUuid = getPersistentDeviceId();
   
   final service = SignalingService(
     SupabaseClient(
-      dotenv.env['SUPABASE_URL'] ?? 'https://mock.supabase.co',
-      dotenv.env['SUPABASE_ANON_KEY'] ?? 'mock_key'
+      getSupabaseUrl(),
+      getSupabaseAnonKey(),
     ),
     myUuid
   );
@@ -57,9 +73,9 @@ class DiscoveredPeersNotifier extends _$DiscoveredPeersNotifier {
   List<Map<String, dynamic>> build() {
     final signaling = ref.watch(signalingServiceProvider);
     signaling.onPeersUpdated = (peers) {
-      state = peers;
+      state = List.from(peers);
     };
-    return [];
+    return signaling.getDiscoveredPeers();
   }
 }
 

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 /// Zero-Trust Signaling Service using Supabase Realtime Channels.
@@ -17,9 +18,36 @@ class SignalingService {
   // Callback for Peer Discovery
   Function(List<Map<String, dynamic>> peers)? onPeersUpdated;
 
+  // Cached active peers in the enclave
+  List<Map<String, dynamic>> currentPeers = [];
+
   final String _myUuid;
 
   SignalingService(this._supabase, this._myUuid);
+
+  List<Map<String, dynamic>> getDiscoveredPeers() {
+    if (_channel == null) return currentPeers;
+    try {
+      final state = _channel!.presenceState();
+      final List<Map<String, dynamic>> discovered = [];
+      for (final client in state) {
+        for (final presence in client.presences) {
+          final payload = presence.payload;
+          if (payload['uuid'] != null && payload['uuid'] != _myUuid) {
+            discovered.add({
+              'uuid': payload['uuid'],
+              'platform': payload['platform'] ?? 'Kerberos Agent',
+              'online_at': payload['online_at'],
+            });
+          }
+        }
+      }
+      if (discovered.isNotEmpty) {
+        currentPeers = discovered;
+      }
+    } catch (_) {}
+    return currentPeers;
+  }
 
   void connect() {
     print(">> [Signaling] Booting Supabase enclave for UUID: $_myUuid");
@@ -27,7 +55,7 @@ class SignalingService {
 
     // 1. Listen for Peer Discovery (Presence)
     _channel!.onPresenceSync((_) {
-      final state = _channel!.presenceState(); // List<SinglePresenceState>
+      final state = _channel!.presenceState();
       final List<Map<String, dynamic>> discoveredPeers = [];
       
       for (final client in state) {
@@ -42,7 +70,9 @@ class SignalingService {
           }
         }
       }
-      onPeersUpdated?.call(discoveredPeers);
+      currentPeers = discoveredPeers;
+      print(">> [Signaling] Discovered peers updated (${currentPeers.length} active): $currentPeers");
+      onPeersUpdated?.call(currentPeers);
     });
 
     // 2. Listen for Secure Handshakes (Broadcast)
@@ -79,9 +109,10 @@ class SignalingService {
     _channel!.subscribe((status, [error]) async {
       print(">> [Signaling] Channel status: $status");
       if (status == RealtimeSubscribeStatus.subscribed) {
+        final platformName = kIsWeb ? 'Kerberos Web' : 'Kerberos Windows';
         await _channel!.track({
           'uuid': _myUuid,
-          'platform': 'Kerberos Agent',
+          'platform': platformName,
           'online_at': DateTime.now().toIso8601String(),
         });
       }

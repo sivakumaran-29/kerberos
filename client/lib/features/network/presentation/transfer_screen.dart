@@ -260,8 +260,29 @@ class _TransferScreenState extends ConsumerState<TransferScreen> {
                         ),
                         const SizedBox(height: 32),
                         
-                        // Discovered Peers List (AirDrop Style)
-                        const Text('> DISCOVERED AGENTS (AIR-DROP)', style: TextStyle(color: kTextColor, fontWeight: FontWeight.bold)),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text('> DISCOVERED AGENTS (AIR-DROP)', style: TextStyle(color: kTextColor, fontWeight: FontWeight.bold)),
+                            InkWell(
+                              onTap: () {
+                                ref.invalidate(discoveredPeersNotifierProvider);
+                              },
+                              borderRadius: BorderRadius.circular(8),
+                              child: Padding(
+                                padding: const EdgeInsets.all(4.0),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: const [
+                                    Icon(Icons.refresh, size: 14, color: kAccentColor),
+                                    SizedBox(width: 4),
+                                    Text('RE-SCAN', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: kAccentColor)),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                         const SizedBox(height: 12),
                         Consumer(builder: (context, ref, child) {
                           final peers = ref.watch(discoveredPeersNotifierProvider);

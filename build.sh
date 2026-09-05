@@ -8,6 +8,13 @@ export PATH="$PATH:`pwd`/flutter/bin"
 cd client
 
 echo ">>> Injecting Environment Variables..."
+if [ -z "$SUPABASE_URL" ]; then
+  SUPABASE_URL="https://kyojroqhbvadzocdpnqn.supabase.co"
+fi
+if [ -z "$SUPABASE_ANON_KEY" ]; then
+  SUPABASE_ANON_KEY="sb_publishable_trcpGuxjaKxTlb8Sa-b8vA_qWRPTwTf"
+fi
+
 echo "SUPABASE_URL=$SUPABASE_URL" > .env
 echo "SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY" >> .env
 echo "DEVICE_UUID=web-agent" >> .env
