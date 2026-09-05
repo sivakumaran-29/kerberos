@@ -10,11 +10,21 @@ import '../../../main.dart'; // for ledgerProvider
 
 part 'network_providers.g.dart';
 
+String? _cachedSessionId;
+
+String getPersistentDeviceId() {
+  if (_cachedSessionId != null) return _cachedSessionId!;
+  if (kIsWeb) {
+    _cachedSessionId = const Uuid().v4();
+  } else {
+    _cachedSessionId = dotenv.env['DEVICE_UUID'] ?? const Uuid().v4();
+  }
+  return _cachedSessionId!;
+}
+
 @Riverpod(keepAlive: true)
 SignalingService signalingService(SignalingServiceRef ref) {
-  // On Vercel (Web), generate a fresh UUID so every visitor is a unique peer.
-  // On Native (Windows), strictly use the air-gapped .env identity.
-  final myUuid = kIsWeb ? const Uuid().v4() : (dotenv.env['DEVICE_UUID'] ?? const Uuid().v4());
+  final myUuid = getPersistentDeviceId();
   
   final service = SignalingService(
     SupabaseClient(

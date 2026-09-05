@@ -12,6 +12,7 @@ class SignalingService {
   Function(Map<String, dynamic> offer, String senderId)? onOfferReceived;
   Function(Map<String, dynamic> answer)? onAnswerReceived;
   Function(Map<String, dynamic> iceCandidate)? onIceCandidateReceived;
+  Function(String error)? onRemoteErrorReceived;
   
   // Callback for Peer Discovery
   Function(List<Map<String, dynamic>> peers)? onPeersUpdated;
@@ -21,6 +22,7 @@ class SignalingService {
   SignalingService(this._supabase, this._myUuid);
 
   void connect() {
+    print(">> [Signaling] Booting Supabase enclave for UUID: $_myUuid");
     _channel = _supabase.channel('kerberos_enclave');
 
     // 1. Listen for Peer Discovery (Presence)
@@ -54,6 +56,8 @@ class SignalingService {
         final signalPayload = payload['payload'] as Map<String, dynamic>;
         final senderId = payload['sender_id'] as String;
 
+        print(">> [Signaling] Received '$type' signal from $senderId");
+
         switch (type) {
           case 'offer':
             onOfferReceived?.call(signalPayload, senderId);
@@ -64,16 +68,20 @@ class SignalingService {
           case 'ice':
             onIceCandidateReceived?.call(signalPayload);
             break;
+          case 'error':
+            onRemoteErrorReceived?.call(signalPayload['error'] as String? ?? 'Remote fault');
+            break;
         }
       }
     );
 
     // 3. Connect and broadcast our identity
     _channel!.subscribe((status, [error]) async {
+      print(">> [Signaling] Channel status: $status");
       if (status == RealtimeSubscribeStatus.subscribed) {
         await _channel!.track({
           'uuid': _myUuid,
-          'platform': 'Kerberos Windows/Web',
+          'platform': 'Kerberos Agent',
           'online_at': DateTime.now().toIso8601String(),
         });
       }
@@ -90,6 +98,7 @@ class SignalingService {
       throw Exception("Zero-Trust Fault: Signaling channel not established.");
     }
 
+    print(">> [Signaling] Sending '$type' signal to $targetId");
     await _channel!.sendBroadcastMessage(
       event: 'signal',
       payload: {

@@ -265,8 +265,7 @@ class _FeatureCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Expanded(
       child: NeomorphicContainer(
-        height: 240,
-        padding: const EdgeInsets.all(32),
+        padding: const EdgeInsets.all(28),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

@@ -23,8 +23,7 @@ class WebRTCService {
   Function(double progress)? onTransferProgress;
   Function(String status)? onStatusUpdate;
 
-  // WebRTC ICE Configuration: Comprehensive STUN + OpenRelay TURN
-  // Supports NAT Traversal across symmetric firewalls, school/corporate networks, and same-LAN WiFi.
+  // WebRTC ICE Configuration: Standard W3C STUN + OpenRelay TURN
   static const Map<String, dynamic> _iceConfiguration = {
     'sdpSemantics': 'unified-plan',
     'iceCandidatePoolSize': 10,
@@ -36,29 +35,15 @@ class WebRTCService {
           'stun:stun.l.google.com:19302',
           'stun:stun1.l.google.com:19302',
           'stun:stun2.l.google.com:19302',
-        ],
-      },
-      // 2. Cloudflare STUN
-      {
-        'urls': [
           'stun:stun.cloudflare.com:3478',
         ],
       },
-      // 3. Metered OpenRelay Free Public TURN (UDP & TCP & TLS)
+      // 2. Metered OpenRelay Free Public TURN (UDP & TCP)
       {
         'urls': [
           'turn:openrelay.metered.ca:80',
           'turn:openrelay.metered.ca:443',
           'turn:openrelay.metered.ca:443?transport=tcp',
-          'turn:openrelay.metered.ca:80?transport=tcp',
-        ],
-        'username': 'openrelayproject',
-        'credential': 'openrelayproject',
-      },
-      {
-        'urls': [
-          'turns:openrelay.metered.ca:443?transport=tcp',
-          'turns:openrelay.metered.ca:5349?transport=tcp',
         ],
         'username': 'openrelayproject',
         'credential': 'openrelayproject',
@@ -70,6 +55,11 @@ class WebRTCService {
     _signaling.onOfferReceived = _handleOffer;
     _signaling.onAnswerReceived = _handleAnswer;
     _signaling.onIceCandidateReceived = _handleIceCandidate;
+    _signaling.onRemoteErrorReceived = (error) {
+      print(">> [WebRTC] Remote peer reported error: $error");
+      _lastTechnicalError = "Remote Peer Fault: $error";
+      onStatusUpdate?.call("Remote peer error: $error");
+    };
   }
 
   /// Initializes RTCPeerConnection and binds ICE and DataChannel listeners.
@@ -178,25 +168,46 @@ class WebRTCService {
     print(">> [WebRTC] RECEIVER: SDP Offer received from $senderId");
     onStatusUpdate?.call("Incoming handshake from $senderId. Preparing answer...");
 
-    await _initializeConnection(senderId);
+    try {
+      await _initializeConnection(senderId);
 
-    final offer = RTCSessionDescription(payload['sdp'], payload['type']);
-    await _peerConnection!.setRemoteDescription(offer);
-    _isRemoteDescriptionSet = true;
+      final rawSdp = payload['sdp'] as String?;
+      final rawType = payload['type'] as String? ?? 'offer';
+      
+      if (rawSdp == null || rawSdp.isEmpty) {
+        throw Exception("Invalid Offer: Empty SDP payload received.");
+      }
 
-    // Process any remote ICE candidates that arrived before the offer
-    await _processQueuedCandidates();
+      final offer = RTCSessionDescription(rawSdp, rawType);
+      await _peerConnection!.setRemoteDescription(offer);
+      _isRemoteDescriptionSet = true;
 
-    // Create and send SDP Answer
-    final answer = await _peerConnection!.createAnswer();
-    await _peerConnection!.setLocalDescription(answer);
+      // Process any remote ICE candidates that arrived before the offer
+      await _processQueuedCandidates();
 
-    onStatusUpdate?.call("SDP Answer dispatched. Opening DTLS tunnel...");
-    await _signaling.sendSignal(
-      targetId: senderId,
-      type: 'answer',
-      payload: {'sdp': answer.sdp, 'type': answer.type},
-    );
+      // Create and send SDP Answer
+      final answer = await _peerConnection!.createAnswer();
+      await _peerConnection!.setLocalDescription(answer);
+
+      print(">> [WebRTC] RECEIVER: SDP Answer generated. Sending back to $senderId");
+      onStatusUpdate?.call("SDP Answer dispatched. Opening DTLS tunnel...");
+      await _signaling.sendSignal(
+        targetId: senderId,
+        type: 'answer',
+        payload: {'sdp': answer.sdp, 'type': answer.type},
+      );
+    } catch (e, st) {
+      print(">> [WebRTC] RECEIVER FAULT in _handleOffer: $e\n$st");
+      final faultMessage = e.toString().replaceFirst(RegExp(r'^Exception:\s*'), '');
+      onStatusUpdate?.call("Receiver Error: $faultMessage");
+      try {
+        await _signaling.sendSignal(
+          targetId: senderId,
+          type: 'error',
+          payload: {'error': faultMessage},
+        );
+      } catch (_) {}
+    }
   }
 
   /// Initiator (Sender): Receives SDP Answer from Receiver and flushes queued ICE.
@@ -209,11 +220,20 @@ class WebRTCService {
       return;
     }
 
-    final answer = RTCSessionDescription(payload['sdp'], payload['type']);
-    await _peerConnection!.setRemoteDescription(answer);
-    _isRemoteDescriptionSet = true;
+    try {
+      final rawSdp = payload['sdp'] as String?;
+      final rawType = payload['type'] as String? ?? 'answer';
+      if (rawSdp == null || rawSdp.isEmpty) return;
 
-    await _processQueuedCandidates();
+      final answer = RTCSessionDescription(rawSdp, rawType);
+      await _peerConnection!.setRemoteDescription(answer);
+      _isRemoteDescriptionSet = true;
+
+      await _processQueuedCandidates();
+    } catch (e) {
+      print(">> [WebRTC] SENDER FAULT in _handleAnswer: $e");
+      _lastTechnicalError = "Invalid SDP Answer from peer: $e";
+    }
   }
 
   /// Both: Handles incoming remote ICE candidates with queueing support to prevent race conditions.
@@ -286,13 +306,16 @@ class WebRTCService {
     const int timeoutMs = 20000; // 20s timeout for TURN negotiation
 
     while ((_dataChannel == null || _dataChannel!.state != RTCDataChannelState.RTCDataChannelOpen) && elapsedMs < timeoutMs) {
+      if (_lastTechnicalError != null) {
+        throw Exception(_lastTechnicalError!);
+      }
       if (_currentIceState == RTCIceConnectionState.RTCIceConnectionStateFailed) {
         throw Exception(
           "WebRTC ICE Connection Failed: Direct UDP and TURN relay routes were blocked by network firewall or symmetric NAT.\n"
           "Troubleshooting:\n"
-          "1. Ensure both devices are on the Transfer screen.\n"
-          "2. If on same Wi-Fi, ensure router permits client isolation / TURN relay.\n"
-          "3. Verify outbound ports 80/443/3478 are not blocked by Windows Defender."
+          "1. Ensure both devices have Kerberos open.\n"
+          "2. If on same Wi-Fi, router may block client-to-client traffic (AP Isolation).\n"
+          "3. Verify outbound ports 80/443/3478 are permitted."
         );
       }
       await Future.delayed(const Duration(milliseconds: intervalMs));
@@ -311,7 +334,7 @@ class WebRTCService {
         throw Exception(
           "Signaling Timeout: No SDP Answer received from peer ${_currentTargetId ?? 'target'}.\n"
           "Cause: Target peer did not respond within 20s.\n"
-          "Resolution: Ensure the target peer has Project Kerberos actively open on the 'Secure Transfer' screen."
+          "Resolution: Ensure the target peer has Project Kerberos actively open."
         );
       }
       if (_currentIceState == RTCIceConnectionState.RTCIceConnectionStateChecking) {

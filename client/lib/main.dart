@@ -4,6 +4,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'features/home/presentation/home_screen.dart';
 import 'shared/widgets/neomorphic_container.dart';
 import 'features/ledger/services/ledger_service.dart';
+import 'features/network/providers/network_providers.dart';
 
 // Global Provider for the securely initialized ledger
 final ledgerProvider = Provider<LedgerService>((ref) {
@@ -34,11 +35,14 @@ void main() async {
   );
 }
 
-class KerberosApp extends StatelessWidget {
+class KerberosApp extends ConsumerWidget {
   const KerberosApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    // Eagerly boot signaling and WebRTC engine globally so handshakes are answered anywhere in the app
+    ref.watch(webRtcServiceProvider);
+
     return MaterialApp(
       title: 'Project Kerberos',
       theme: ThemeData.light().copyWith(
