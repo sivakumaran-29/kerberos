@@ -22,6 +22,8 @@ class SignalingService {
   List<Map<String, dynamic>> currentPeers = [];
 
   final String _myUuid;
+  bool _isSubscribed = false;
+  Completer<void> _subCompleter = Completer<void>();
 
   SignalingService(this._supabase, this._myUuid);
 
@@ -85,7 +87,7 @@ class SignalingService {
         Map<String, dynamic> msg = raw;
         if (raw.containsKey('payload') && raw['payload'] is Map<String, dynamic>) {
           final inner = raw['payload'] as Map<String, dynamic>;
-          if (inner.containsKey('target_id') || inner.containsKey('type')) {
+          if (inner.containsKey('target_id') || inner.containsKey('signal_type') || inner.containsKey('sender_id')) {
             msg = inner;
           }
         }
@@ -101,15 +103,29 @@ class SignalingService {
 
         print(">> [Signaling] Checking targetId: '$targetId' vs myUuid: '$myId'");
         if (targetId != myId) {
-          print(">> [Signaling] Signal not for us. Ignored.");
+          print(">> [Signaling] Signal intended for $targetId, not $myId. Ignored.");
           return;
         }
 
-        final type = msg['type']?.toString();
-        final senderId = msg['sender_id']?.toString() ?? 'unknown';
         final signalPayload = msg['payload'] is Map<String, dynamic>
             ? msg['payload'] as Map<String, dynamic>
             : <String, dynamic>{};
+
+        // Detect signal type reliably even if Supabase Realtime injects type: "broadcast"
+        String? type = msg['signal_type']?.toString();
+        if (type == null || type == 'broadcast') {
+          if (msg['type'] != null && msg['type'] != 'broadcast') {
+            type = msg['type'].toString();
+          } else if (signalPayload.containsKey('sdp')) {
+            type = signalPayload['type']?.toString() ?? 'offer';
+          } else if (signalPayload.containsKey('candidate')) {
+            type = 'ice';
+          } else if (signalPayload.containsKey('error')) {
+            type = 'error';
+          }
+        }
+
+        final senderId = msg['sender_id']?.toString() ?? 'unknown';
 
         print(">> [Signaling] MATCH! Dispatching '$type' signal from $senderId");
 
@@ -128,6 +144,9 @@ class SignalingService {
           case 'error':
             onRemoteErrorReceived?.call(signalPayload['error']?.toString() ?? 'Remote fault');
             break;
+          default:
+            print(">> [Signaling] Unrecognized signal type: '$type'");
+            break;
         }
       }
     );
@@ -136,12 +155,21 @@ class SignalingService {
     _channel!.subscribe((status, [error]) async {
       print(">> [Signaling] Channel subscription status: $status (error: $error)");
       if (status == RealtimeSubscribeStatus.subscribed) {
+        _isSubscribed = true;
+        if (!_subCompleter.isCompleted) {
+          _subCompleter.complete();
+        }
         final platformName = kIsWeb ? 'Kerberos Web' : 'Kerberos Windows';
         await _channel!.track({
           'uuid': _myUuid,
           'platform': platformName,
           'online_at': DateTime.now().toIso8601String(),
         });
+      } else if (status == RealtimeSubscribeStatus.closed || status == RealtimeSubscribeStatus.channelError) {
+        _isSubscribed = false;
+        if (_subCompleter.isCompleted) {
+          _subCompleter = Completer<void>();
+        }
       }
     });
   }
@@ -156,16 +184,30 @@ class SignalingService {
       throw Exception("Zero-Trust Fault: Signaling channel not established.");
     }
 
+    if (!_isSubscribed) {
+      print(">> [Signaling] Awaiting channel subscription before dispatching '$type'...");
+      try {
+        await _subCompleter.future.timeout(const Duration(seconds: 4));
+      } catch (_) {
+        print(">> [Signaling] Notice: Proceeding with signal dispatch...");
+      }
+    }
+
     print(">> [Signaling] Outbound '$type' signal to $targetId");
-    await _channel!.sendBroadcastMessage(
+    final response = await _channel!.sendBroadcastMessage(
       event: 'signal',
       payload: {
         'sender_id': _myUuid,
         'target_id': targetId,
+        'signal_type': type,
         'type': type,
         'payload': payload,
       },
     );
+    print(">> [Signaling] sendBroadcastMessage response: $response");
+    if (response != ChannelResponse.ok) {
+      throw Exception("Signaling delivery failed: Supabase returned $response. Ensure remote peer is online.");
+    }
   }
 
   void dispose() {

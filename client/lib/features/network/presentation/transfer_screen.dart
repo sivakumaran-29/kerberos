@@ -22,6 +22,7 @@ class _TransferScreenState extends ConsumerState<TransferScreen> {
     final activeStatus = ref.watch(transferStatusNotifierProvider);
     final progressState = ref.watch(transferProgressNotifierProvider);
     final autoAccept = ref.watch(autoAcceptNotifierProvider);
+    final incomingRequest = ref.watch(incomingTransferNotifierProvider);
 
     // Bind receiver chunk tracking
     webrtc.onFileChunkReceived = (data) {
@@ -126,6 +127,68 @@ class _TransferScreenState extends ConsumerState<TransferScreen> {
                           ),
                         ),
                         const SizedBox(height: 20),
+                        if (incomingRequest != null) ...[
+                          Container(
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: Colors.green, width: 2),
+                              color: Colors.green.withValues(alpha: 0.08),
+                            ),
+                            padding: const EdgeInsets.all(20),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    const Icon(Icons.security, color: Colors.green, size: 24),
+                                    const SizedBox(width: 12),
+                                    const Expanded(
+                                      child: Text(
+                                        'INCOMING AIR-DROP HANDSHAKE',
+                                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.green, letterSpacing: 1.2),
+                                      ),
+                                    ),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        color: Colors.green.withValues(alpha: 0.2),
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                      child: const Text('ACTION REQUIRED', style: TextStyle(color: Colors.green, fontSize: 9, fontWeight: FontWeight.bold)),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 12),
+                                Text(
+                                  'Agent ${incomingRequest.senderId} wants to establish an encrypted P2P DTLS tunnel to transfer an asset.',
+                                  style: const TextStyle(fontSize: 12, color: kTextColor),
+                                ),
+                                const SizedBox(height: 16),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.end,
+                                  children: [
+                                    NeomorphicButton(
+                                      onTap: () {
+                                        ref.read(webRtcServiceProvider).declineIncomingTransfer(incomingRequest.senderId);
+                                        ref.read(incomingTransferNotifierProvider.notifier).clear();
+                                      },
+                                      child: const Text('DECLINE', style: TextStyle(color: kAlertColor, fontWeight: FontWeight.bold, fontSize: 11)),
+                                    ),
+                                    const SizedBox(width: 16),
+                                    NeomorphicButton(
+                                      onTap: () {
+                                        ref.read(webRtcServiceProvider).acceptIncomingTransfer(incomingRequest.senderId, incomingRequest.offerPayload);
+                                        ref.read(incomingTransferNotifierProvider.notifier).clear();
+                                      },
+                                      child: const Text('ACCEPT TRANSFER', style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 11)),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 20),
+                        ],
 
                         // Auto-Accept Toggle
                         NeomorphicContainer(

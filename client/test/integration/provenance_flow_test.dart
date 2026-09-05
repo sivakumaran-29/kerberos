@@ -44,6 +44,7 @@ void main() {
       final recordId = 'uuid-1234-5678';
       final record = ProvenanceRecord(
         id: recordId,
+        filePath: metadata.filePath,
         originalFileHash: metadata.sha256Hash,
         c2paManifestUri: 'urn:uuid:manifest-001',
         timestamp: DateTime.now(),
