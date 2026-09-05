@@ -14,6 +14,7 @@ class GlassContainer extends StatelessWidget {
   final Color? backgroundColor;
   final bool glow;
   final Color glowColor;
+  final bool showSheen;
   final VoidCallback? onTap;
 
   const GlassContainer({
@@ -21,14 +22,15 @@ class GlassContainer extends StatelessWidget {
     required this.child,
     this.width,
     this.height,
-    this.padding = const EdgeInsets.all(20),
+    this.padding = const EdgeInsets.all(24),
     this.margin,
-    this.borderRadius = 16.0,
+    this.borderRadius = 20.0,
     this.borderColor,
     this.borderWidth = 1.0,
     this.backgroundColor,
     this.glow = false,
     this.glowColor = CyberTheme.cyan,
+    this.showSheen = true,
     this.onTap,
   });
 
@@ -37,11 +39,10 @@ class GlassContainer extends StatelessWidget {
     Widget content = ClipRRect(
       borderRadius: BorderRadius.circular(borderRadius),
       child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
         child: Container(
           width: width,
           height: height,
-          padding: padding,
           decoration: BoxDecoration(
             color: backgroundColor ?? CyberTheme.surfaceGlass,
             borderRadius: BorderRadius.circular(borderRadius),
@@ -52,14 +53,46 @@ class GlassContainer extends StatelessWidget {
             boxShadow: glow
                 ? [
                     BoxShadow(
-                      color: glowColor.withValues(alpha: 0.25),
-                      blurRadius: 20,
-                      spreadRadius: 1,
+                      color: glowColor.withValues(alpha: 0.18),
+                      blurRadius: 28,
+                      spreadRadius: 2,
+                    ),
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.4),
+                      blurRadius: 16,
+                      offset: const Offset(0, 8),
                     ),
                   ]
-                : null,
+                : [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.35),
+                      blurRadius: 16,
+                      offset: const Offset(0, 6),
+                    ),
+                  ],
           ),
-          child: child,
+          child: Stack(
+            children: [
+              // Subtle top-edge inner glass sheen
+              if (showSheen)
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  height: 48,
+                  child: Container(
+                    decoration: const BoxDecoration(
+                      gradient: CyberTheme.glassSheenGradient,
+                    ),
+                  ),
+                ),
+              // Content
+              Padding(
+                padding: padding,
+                child: child,
+              ),
+            ],
+          ),
         ),
       ),
     );
