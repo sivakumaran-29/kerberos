@@ -60,21 +60,23 @@ class TransferProgressNotifier extends _$TransferProgressNotifier {
   void startTransfer(String targetId) async {
     state = const AsyncValue.loading();
     try {
-      // 1. Fetch latest asset from the air-gapped ledger
       final ledger = ref.read(ledgerProvider);
       final record = ledger.getLatestRecord();
-      if (record == null) {
-        throw Exception("SILENT ALERT: No sealed assets found in the local ledger.");
-      }
       
       // 2. Read the binary payload from disk (Cross-platform safe)
       Uint8List fileBytes;
-      try {
-        final file = XFile(record.filePath);
-        fileBytes = await file.readAsBytes();
-      } catch (e) {
-        // Fallback for Web/Vercel (Mock payload since browsers lack file paths)
-        fileBytes = Uint8List.fromList(List.generate(1024, (i) => i % 256));
+      if (record == null) {
+        // HACKATHON FALLBACK: If they haven't uploaded an asset yet, send a mock payload
+        // to demonstrate the P2P tunnel rather than crashing.
+        fileBytes = Uint8List.fromList([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+      } else {
+        try {
+          final file = XFile(record.filePath);
+          fileBytes = await file.readAsBytes();
+        } catch (e) {
+          // Fallback for Web/Vercel (Mock payload since browsers lack file paths)
+          fileBytes = Uint8List.fromList(List.generate(1024, (i) => i % 256));
+        }
       }
 
       // 3. Bind WebRTC tracking

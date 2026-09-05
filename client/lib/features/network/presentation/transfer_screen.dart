@@ -16,6 +16,23 @@ class _TransferScreenState extends ConsumerState<TransferScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Zero-Trust Constraint: Force WebRTC receiver pipeline to initialize.
+    // Without this, the receiver never listens for incoming handshakes!
+    ref.watch(webRtcServiceProvider);
+    
+    // Listen for incoming files on the receiver side
+    ref.listen(webRtcServiceProvider, (previous, webrtc) {
+      webrtc.onTransferComplete = () {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('INCOMING ASSET SECURELY RECEIVED & VERIFIED.', style: TextStyle(fontFamily: 'monospace')),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 4),
+          )
+        );
+      };
+    });
+
     final progressState = ref.watch(transferProgressNotifierProvider);
 
     return Scaffold(
