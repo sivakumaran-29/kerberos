@@ -17,6 +17,10 @@ class WebRTCService {
   RTCIceConnectionState? _currentIceState;
   String? _lastTechnicalError;
 
+  // Auto-Accept toggle & incoming request hook
+  bool autoAccept = false;
+  Function(String senderId, Map<String, dynamic> offerPayload)? onIncomingOfferRequest;
+
   // Lifecycle & Transfer Callbacks
   Function(Uint8List data)? onFileChunkReceived;
   Function()? onTransferComplete;
@@ -52,7 +56,15 @@ class WebRTCService {
   };
 
   WebRTCService(this._signaling) {
-    _signaling.onOfferReceived = _handleOffer;
+    _signaling.onOfferReceived = (payload, senderId) {
+      if (autoAccept) {
+        acceptIncomingTransfer(senderId, payload);
+      } else {
+        onStatusUpdate?.call("Incoming handshake request from $senderId. Awaiting confirmation...");
+        onIncomingOfferRequest?.call(senderId, payload);
+      }
+    };
+
     _signaling.onAnswerReceived = _handleAnswer;
     _signaling.onIceCandidateReceived = _handleIceCandidate;
     _signaling.onRemoteErrorReceived = (error) {
@@ -163,10 +175,10 @@ class WebRTCService {
     );
   }
 
-  /// Receiver: Receives SDP Offer, sets remote description, flushes queued ICE, and answers.
-  Future<void> _handleOffer(Map<String, dynamic> payload, String senderId) async {
-    print(">> [WebRTC] RECEIVER: SDP Offer received from $senderId");
-    onStatusUpdate?.call("Incoming handshake from $senderId. Preparing answer...");
+  /// Receiver Action: Called when the user clicks 'ACCEPT TRANSFER'
+  Future<void> acceptIncomingTransfer(String senderId, Map<String, dynamic> payload) async {
+    print(">> [WebRTC] RECEIVER: Transfer accepted by user for sender: $senderId");
+    onStatusUpdate?.call("Handshake accepted. Negotiating cryptographic tunnel...");
 
     try {
       await _initializeConnection(senderId);
@@ -197,7 +209,7 @@ class WebRTCService {
         payload: {'sdp': answer.sdp, 'type': answer.type},
       );
     } catch (e, st) {
-      print(">> [WebRTC] RECEIVER FAULT in _handleOffer: $e\n$st");
+      print(">> [WebRTC] RECEIVER FAULT in acceptIncomingTransfer: $e\n$st");
       final faultMessage = e.toString().replaceFirst(RegExp(r'^Exception:\s*'), '');
       onStatusUpdate?.call("Receiver Error: $faultMessage");
       try {
@@ -208,6 +220,19 @@ class WebRTCService {
         );
       } catch (_) {}
     }
+  }
+
+  /// Receiver Action: Called when the user clicks 'DECLINE'
+  Future<void> declineIncomingTransfer(String senderId) async {
+    print(">> [WebRTC] RECEIVER: Transfer declined by user for sender: $senderId");
+    onStatusUpdate?.call("Incoming handshake from $senderId declined.");
+    try {
+      await _signaling.sendSignal(
+        targetId: senderId,
+        type: 'error',
+        payload: {'error': 'Transfer was declined by the recipient.'},
+      );
+    } catch (_) {}
   }
 
   /// Initiator (Sender): Receives SDP Answer from Receiver and flushes queued ICE.
@@ -299,11 +324,11 @@ class WebRTCService {
   /// Streams binary payload over the DataChannel in 16KB chunks.
   /// Throws granular, highly specific technical exceptions on any failure.
   Future<void> sendFileBytes(Uint8List fileBytes) async {
-    onStatusUpdate?.call("Waiting for P2P DataChannel tunnel to open...");
+    onStatusUpdate?.call("Waiting for peer to accept and open DataChannel...");
 
     int elapsedMs = 0;
     const int intervalMs = 100;
-    const int timeoutMs = 20000; // 20s timeout for TURN negotiation
+    const int timeoutMs = 45000; // 45s timeout to allow remote user to click Accept
 
     while ((_dataChannel == null || _dataChannel!.state != RTCDataChannelState.RTCDataChannelOpen) && elapsedMs < timeoutMs) {
       if (_lastTechnicalError != null) {
@@ -321,8 +346,12 @@ class WebRTCService {
       await Future.delayed(const Duration(milliseconds: intervalMs));
       elapsedMs += intervalMs;
 
-      if (elapsedMs % 3000 == 0) {
-        onStatusUpdate?.call("Connecting DataChannel (${elapsedMs ~/ 1000}s/20s)... State: ${_dataChannel?.state ?? 'null'}, ICE: ${_currentIceState ?? 'none'}");
+      if (elapsedMs % 2000 == 0) {
+        if (!_isRemoteDescriptionSet) {
+          onStatusUpdate?.call("Awaiting recipient acceptance (${elapsedMs ~/ 1000}s/45s)...");
+        } else {
+          onStatusUpdate?.call("Connecting DataChannel (${elapsedMs ~/ 1000}s/45s)... State: ${_dataChannel?.state ?? 'null'}, ICE: ${_currentIceState ?? 'none'}");
+        }
       }
     }
 
@@ -332,9 +361,8 @@ class WebRTCService {
       }
       if (!_isRemoteDescriptionSet) {
         throw Exception(
-          "Signaling Timeout: No SDP Answer received from peer ${_currentTargetId ?? 'target'}.\n"
-          "Cause: Target peer did not respond within 20s.\n"
-          "Resolution: Ensure the target peer has Project Kerberos actively open."
+          "Handshake Timeout: Recipient ${_currentTargetId ?? 'target'} did not accept the incoming transfer within 45s.\n"
+          "Resolution: Ensure the recipient taps 'ACCEPT TRANSFER' on their device or turns on Auto-Accept."
         );
       }
       if (_currentIceState == RTCIceConnectionState.RTCIceConnectionStateChecking) {
@@ -345,7 +373,7 @@ class WebRTCService {
         );
       }
       throw Exception(
-        "DataChannel Timeout: Peer answered, but SCTP DataChannel failed to enter 'open' state.\n"
+        "DataChannel Timeout: Peer accepted, but SCTP DataChannel failed to enter 'open' state.\n"
         "Current DataChannel: ${_dataChannel?.state ?? 'null'}, ICE: ${_currentIceState ?? 'none'}."
       );
     }

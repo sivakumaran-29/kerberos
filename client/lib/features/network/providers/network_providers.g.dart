@@ -6,7 +6,7 @@ part of 'network_providers.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$signalingServiceHash() => r'38869398ff5c97ecb5d482590632547d469d584f';
+String _$signalingServiceHash() => r'8db5121287239b1dbb52fb9527844cc97717693c';
 
 /// See also [signalingService].
 @ProviderFor(signalingService)
@@ -54,6 +54,40 @@ final discoveredPeersNotifierProvider = AutoDisposeNotifierProvider<
 
 typedef _$DiscoveredPeersNotifier
     = AutoDisposeNotifier<List<Map<String, dynamic>>>;
+String _$autoAcceptNotifierHash() =>
+    r'64243ae01a29270584240d7e9feaaf1d6075773f';
+
+/// See also [AutoAcceptNotifier].
+@ProviderFor(AutoAcceptNotifier)
+final autoAcceptNotifierProvider =
+    NotifierProvider<AutoAcceptNotifier, bool>.internal(
+  AutoAcceptNotifier.new,
+  name: r'autoAcceptNotifierProvider',
+  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+      ? null
+      : _$autoAcceptNotifierHash,
+  dependencies: null,
+  allTransitiveDependencies: null,
+);
+
+typedef _$AutoAcceptNotifier = Notifier<bool>;
+String _$incomingTransferNotifierHash() =>
+    r'645581461b52c3a60be33b4f55c7b6c7f867aed6';
+
+/// See also [IncomingTransferNotifier].
+@ProviderFor(IncomingTransferNotifier)
+final incomingTransferNotifierProvider = NotifierProvider<
+    IncomingTransferNotifier, IncomingTransferRequest?>.internal(
+  IncomingTransferNotifier.new,
+  name: r'incomingTransferNotifierProvider',
+  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+      ? null
+      : _$incomingTransferNotifierHash,
+  dependencies: null,
+  allTransitiveDependencies: null,
+);
+
+typedef _$IncomingTransferNotifier = Notifier<IncomingTransferRequest?>;
 String _$transferStatusNotifierHash() =>
     r'ed28ea340275eda461a2bcc8a794813bbce4cb58';
 

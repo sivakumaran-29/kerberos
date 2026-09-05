@@ -22,6 +22,18 @@ String getPersistentDeviceId() {
   return _cachedSessionId!;
 }
 
+class IncomingTransferRequest {
+  final String senderId;
+  final Map<String, dynamic> offerPayload;
+  final DateTime timestamp;
+
+  const IncomingTransferRequest({
+    required this.senderId,
+    required this.offerPayload,
+    required this.timestamp,
+  });
+}
+
 @Riverpod(keepAlive: true)
 SignalingService signalingService(SignalingServiceRef ref) {
   final myUuid = getPersistentDeviceId();
@@ -57,6 +69,44 @@ WebRTCService webRtcService(WebRtcServiceRef ref) {
   final service = WebRTCService(signaling);
   ref.onDispose(() => service.closeConnection());
   return service;
+}
+
+@Riverpod(keepAlive: true)
+class AutoAcceptNotifier extends _$AutoAcceptNotifier {
+  @override
+  bool build() {
+    return false; // Default: Manual confirmation required
+  }
+
+  void toggle() {
+    state = !state;
+    ref.read(webRtcServiceProvider).autoAccept = state;
+  }
+
+  void set(bool value) {
+    state = value;
+    ref.read(webRtcServiceProvider).autoAccept = value;
+  }
+}
+
+@Riverpod(keepAlive: true)
+class IncomingTransferNotifier extends _$IncomingTransferNotifier {
+  @override
+  IncomingTransferRequest? build() {
+    final webrtc = ref.watch(webRtcServiceProvider);
+    webrtc.onIncomingOfferRequest = (senderId, payload) {
+      state = IncomingTransferRequest(
+        senderId: senderId,
+        offerPayload: payload,
+        timestamp: DateTime.now(),
+      );
+    };
+    return null;
+  }
+
+  void clear() {
+    state = null;
+  }
 }
 
 @Riverpod(keepAlive: true)
