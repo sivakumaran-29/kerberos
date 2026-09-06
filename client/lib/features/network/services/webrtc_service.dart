@@ -341,6 +341,12 @@ class WebRTCService {
         onStatusUpdate?.call("DataChannel Closed.");
       }
     };
+
+    // If channel is already open upon binding, trigger state callback immediately
+    if (channel.state == RTCDataChannelState.RTCDataChannelOpen) {
+      print(">> [WebRTC] DataChannel is already OPEN upon setup. Notifying listeners.");
+      onDataChannelStateChanged?.call(channel.state!);
+    }
   }
 
   /// Sends a UTF-8 text message or JSON packet across the active DataChannel.

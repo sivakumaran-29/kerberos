@@ -193,5 +193,41 @@ void main() {
       await future;
       session.dispose();
     });
+
+    test('User 2 accepts incoming handshake and remains connected through DataChannelConnecting to Open', () async {
+      final mockWebRTC = MockWebRTCService();
+      final session = P2PSessionService(
+        webrtc: mockWebRTC,
+        signaling: MockSignalingService(),
+        ledger: MockLedgerService(),
+      );
+
+      const senderPeer = RadarPeer(
+        uuid: 'sender-user-1',
+        displayName: 'Sivakumaran',
+        email: 'siva@enclave.io',
+        platform: 'Windows Enclave',
+        isSimulated: false,
+      );
+
+      // User 2 accepts invitation
+      session.handleIncomingSessionAccepted(senderPeer);
+      expect(session.sessionState, P2PSessionState.connected);
+      expect(session.activePeer?.displayName, 'Sivakumaran');
+
+      // Intermediate RTCDataChannelConnecting MUST NOT disconnect User 2
+      mockWebRTC.onDataChannelStateChanged?.call(RTCDataChannelState.RTCDataChannelConnecting);
+      expect(session.sessionState, P2PSessionState.connected);
+
+      // RTCDataChannelOpen confirms tunnel
+      mockWebRTC.onDataChannelStateChanged?.call(RTCDataChannelState.RTCDataChannelOpen);
+      expect(session.sessionState, P2PSessionState.connected);
+
+      // Only RTCDataChannelClosed disconnects
+      mockWebRTC.onDataChannelStateChanged?.call(RTCDataChannelState.RTCDataChannelClosed);
+      expect(session.sessionState, P2PSessionState.disconnected);
+
+      session.dispose();
+    });
   });
 }

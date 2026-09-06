@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:cross_file/cross_file.dart';
 import 'package:uuid/uuid.dart';
 
@@ -78,14 +79,17 @@ class P2PSessionService extends ChangeNotifier {
     };
     _webrtc.onDataChannelStateChanged = (state) {
       if (_activePeer != null && !_activePeer!.isSimulated) {
-        if (_webrtc.isConnected) {
+        if (state == RTCDataChannelState.RTCDataChannelOpen) {
           _sessionState = P2PSessionState.connected;
           _appendSystemNotice('WebRTC DTLS 1.3 tunnel opened with ${_activePeer!.displayName}.');
-        } else if (_sessionState == P2PSessionState.connected) {
-          _appendSystemNotice('Peer disconnected. Encrypted tunnel closed.');
-          _sessionState = P2PSessionState.disconnected;
+          notifyListeners();
+        } else if (state == RTCDataChannelState.RTCDataChannelClosed) {
+          if (_sessionState == P2PSessionState.connected) {
+            _appendSystemNotice('Peer disconnected. Encrypted tunnel closed.');
+            _sessionState = P2PSessionState.disconnected;
+            notifyListeners();
+          }
         }
-        notifyListeners();
       }
     };
     _webrtc.onRemoteErrorOccurred = (error) {

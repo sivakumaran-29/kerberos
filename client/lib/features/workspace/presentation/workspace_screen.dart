@@ -922,8 +922,8 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
                   ),
                 ),
 
-                // Floating Incoming Transfer Alert Banner
-                if (incomingRequest != null)
+                // Floating Incoming Transfer Alert Banner (displayed when not on Radar page)
+                if (incomingRequest != null && _activeModal != ActiveDeckModal.radar)
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 6),
                     child: Center(
@@ -1477,7 +1477,6 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
             height: 32,
             padding: const EdgeInsets.symmetric(horizontal: 16),
             onTap: () {
-              ref.read(webRtcServiceProvider).acceptIncomingTransfer(request.senderId, request.offerPayload);
               final peer = RadarPeer(
                 uuid: request.senderId,
                 displayName: request.senderName,
@@ -1488,6 +1487,7 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
               ref.read(p2pSessionServiceProvider).handleIncomingSessionAccepted(peer);
               ref.read(incomingTransferNotifierProvider.notifier).clear();
               _navigateToPage(3);
+              ref.read(webRtcServiceProvider).acceptIncomingTransfer(request.senderId, request.offerPayload);
             },
             child: const Text('ACCEPT'),
           ),

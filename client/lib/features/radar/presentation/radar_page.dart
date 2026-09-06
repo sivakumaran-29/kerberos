@@ -491,9 +491,9 @@ class _RadarPageState extends ConsumerState<RadarPage> with SingleTickerProvider
                 platform: 'Mesh Node',
                 pingMs: 16,
               );
-              ref.read(webRtcServiceProvider).acceptIncomingTransfer(request.senderId, request.offerPayload);
-              ref.read(incomingTransferNotifierProvider.notifier).clear();
               sessionService.handleIncomingSessionAccepted(peer);
+              ref.read(incomingTransferNotifierProvider.notifier).clear();
+              ref.read(webRtcServiceProvider).acceptIncomingTransfer(request.senderId, request.offerPayload);
             },
             child: const Text('ACCEPT & CONNECT'),
           ),
