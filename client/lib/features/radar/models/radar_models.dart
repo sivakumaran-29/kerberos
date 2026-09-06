@@ -152,6 +152,11 @@ class P2PChatMessage {
   final bool isSelf;
   final P2PFileAttachment? fileAttachment;
   final bool isSystemNotice;
+  final bool isSeen;
+  final DateTime? seenAt;
+  final String? replyToId;
+  final String? replyToSender;
+  final String? replyToText;
 
   const P2PChatMessage({
     required this.id,
@@ -162,6 +167,11 @@ class P2PChatMessage {
     required this.isSelf,
     this.fileAttachment,
     this.isSystemNotice = false,
+    this.isSeen = false,
+    this.seenAt,
+    this.replyToId,
+    this.replyToSender,
+    this.replyToText,
   });
 
   P2PChatMessage copyWith({
@@ -173,6 +183,11 @@ class P2PChatMessage {
     bool? isSelf,
     P2PFileAttachment? fileAttachment,
     bool? isSystemNotice,
+    bool? isSeen,
+    DateTime? seenAt,
+    String? replyToId,
+    String? replyToSender,
+    String? replyToText,
   }) {
     return P2PChatMessage(
       id: id ?? this.id,
@@ -183,6 +198,11 @@ class P2PChatMessage {
       isSelf: isSelf ?? this.isSelf,
       fileAttachment: fileAttachment ?? this.fileAttachment,
       isSystemNotice: isSystemNotice ?? this.isSystemNotice,
+      isSeen: isSeen ?? this.isSeen,
+      seenAt: seenAt ?? this.seenAt,
+      replyToId: replyToId ?? this.replyToId,
+      replyToSender: replyToSender ?? this.replyToSender,
+      replyToText: replyToText ?? this.replyToText,
     );
   }
 
@@ -195,6 +215,11 @@ class P2PChatMessage {
       'timestamp': timestamp.toIso8601String(),
       'fileAttachment': fileAttachment?.toJson(),
       'isSystemNotice': isSystemNotice,
+      'isSeen': isSeen,
+      'seenAt': seenAt?.toIso8601String(),
+      'replyToId': replyToId,
+      'replyToSender': replyToSender,
+      'replyToText': replyToText,
     };
   }
 
@@ -212,6 +237,11 @@ class P2PChatMessage {
           ? P2PFileAttachment.fromJson(json['fileAttachment'] as Map<String, dynamic>)
           : null,
       isSystemNotice: json['isSystemNotice'] == true,
+      isSeen: json['isSeen'] == true,
+      seenAt: json['seenAt'] != null ? DateTime.tryParse(json['seenAt'].toString()) : null,
+      replyToId: json['replyToId']?.toString(),
+      replyToSender: json['replyToSender']?.toString(),
+      replyToText: json['replyToText']?.toString(),
     );
   }
 }

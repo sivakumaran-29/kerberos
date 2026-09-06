@@ -12,8 +12,12 @@ class AssetProcessorImpl {
   static Future<AssetMetadata> process(XFile file) async {
     final path = file.path;
     if (path.isNotEmpty && File(path).existsSync()) {
-      // Offload heavy cryptographic processing to a background hardware thread
-      return Isolate.run(() => _processInternal(path));
+      try {
+        // Offload heavy cryptographic processing to a background hardware thread
+        return await Isolate.run(() => _processInternal(path));
+      } catch (e) {
+        // Safe zero-trust fallback if background isolate cannot access native symbols
+      }
     }
 
     // In-memory or virtual XFile fallback (e.g. file picked via bytes)

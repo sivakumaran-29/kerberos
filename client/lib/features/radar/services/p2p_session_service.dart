@@ -47,6 +47,9 @@ class P2PSessionService extends ChangeNotifier {
   P2PFileAttachment? _incomingFilePending;
   final List<int> _incomingBytesBuffer = [];
 
+  // Typing & read receipt state
+  bool _isPeerTyping = false;
+
   // Simulated peer timer
   Timer? _simulatedResponseTimer;
 
@@ -72,6 +75,33 @@ class P2PSessionService extends ChangeNotifier {
   String? get activeTransferringFileName => _activeTransferringFileName;
   bool get hasActiveTransfer => _isTransferring || _isSealing || _transferQueue.isNotEmpty;
   int get transferQueueCount => _transferQueue.length;
+  bool get isPeerTyping => _isPeerTyping;
+
+  /// Dispatches a live typing status packet to the remote peer
+  Future<void> sendTypingIndicator(bool isTyping) async {
+    if (_activePeer != null && !_activePeer!.isSimulated) {
+      try {
+        final packet = jsonEncode({
+          'type': 'typing',
+          'isTyping': isTyping,
+        });
+        await _webrtc.sendTextMessage(packet);
+      } catch (_) {}
+    }
+  }
+
+  /// Sends a read receipt packet indicating all messages were viewed
+  Future<void> markMessagesAsSeen() async {
+    if (_activePeer != null && !_activePeer!.isSimulated) {
+      try {
+        final packet = jsonEncode({
+          'type': 'seen',
+          'timestamp': DateTime.now().toIso8601String(),
+        });
+        await _webrtc.sendTextMessage(packet);
+      } catch (_) {}
+    }
+  }
 
   Function(String peerName, String reason)? onHandshakeDeclined;
 
@@ -171,8 +201,13 @@ class P2PSessionService extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Sends a text message across the encrypted DataChannel
-  Future<void> sendTextMessage(String text) async {
+  /// Sends a text message across the encrypted DataChannel with optional reply quoting
+  Future<void> sendTextMessage(
+    String text, {
+    String? replyToId,
+    String? replyToSender,
+    String? replyToText,
+  }) async {
     if (text.trim().isEmpty) return;
     final messageId = const Uuid().v4();
     
@@ -183,12 +218,25 @@ class P2PSessionService extends ChangeNotifier {
       text: text.trim(),
       timestamp: DateTime.now(),
       isSelf: true,
+      replyToId: replyToId,
+      replyToSender: replyToSender,
+      replyToText: replyToText,
     );
 
     _messages.add(message);
     notifyListeners();
 
     if (_activePeer?.isSimulated == true) {
+      // Simulate remote peer seeing message after 700ms
+      Timer(const Duration(milliseconds: 700), () {
+        for (int i = 0; i < _messages.length; i++) {
+          if (_messages[i].id == messageId) {
+            _messages[i] = _messages[i].copyWith(isSeen: true, seenAt: DateTime.now());
+            notifyListeners();
+            break;
+          }
+        }
+      });
       _triggerSimulatedReply(text);
       return;
     }
@@ -200,6 +248,9 @@ class P2PSessionService extends ChangeNotifier {
         'text': text.trim(),
         'senderName': 'You',
         'timestamp': DateTime.now().toIso8601String(),
+        'replyToId': replyToId,
+        'replyToSender': replyToSender,
+        'replyToText': replyToText,
       });
       await _webrtc.sendTextMessage(packet);
     } catch (e) {
@@ -481,8 +532,24 @@ class P2PSessionService extends ChangeNotifier {
           text: json['text']?.toString() ?? '',
           timestamp: DateTime.tryParse(json['timestamp']?.toString() ?? '') ?? DateTime.now(),
           isSelf: false,
+          replyToId: json['replyToId']?.toString(),
+          replyToSender: json['replyToSender']?.toString(),
+          replyToText: json['replyToText']?.toString(),
         );
         _messages.add(incoming);
+        _isPeerTyping = false;
+        notifyListeners();
+        // Acknowledge read receipt back to remote peer
+        markMessagesAsSeen();
+      } else if (type == 'typing') {
+        _isPeerTyping = json['isTyping'] == true;
+        notifyListeners();
+      } else if (type == 'seen') {
+        for (int i = 0; i < _messages.length; i++) {
+          if (_messages[i].isSelf && !_messages[i].isSeen) {
+            _messages[i] = _messages[i].copyWith(isSeen: true, seenAt: DateTime.now());
+          }
+        }
         notifyListeners();
       } else if (type == 'file_start') {
         _incomingBytesBuffer.clear();
@@ -503,6 +570,7 @@ class P2PSessionService extends ChangeNotifier {
         );
         _messages.add(incomingMsg);
         notifyListeners();
+        markMessagesAsSeen();
       } else if (type == 'session_leave') {
         _appendSystemNotice('${_activePeer?.displayName ?? "Remote peer"} ended the session.');
         _sessionState = P2PSessionState.disconnected;
@@ -561,7 +629,10 @@ class P2PSessionService extends ChangeNotifier {
 
   void _triggerSimulatedReply(String userText) {
     _simulatedResponseTimer?.cancel();
-    _simulatedResponseTimer = Timer(const Duration(milliseconds: 1100), () {
+    _isPeerTyping = true;
+    notifyListeners();
+    _simulatedResponseTimer = Timer(const Duration(milliseconds: 1400), () {
+      _isPeerTyping = false;
       final lower = userText.toLowerCase();
       String reply;
       if (lower.contains('hello') || lower.contains('hi')) {
@@ -646,6 +717,7 @@ class P2PSessionService extends ChangeNotifier {
     _messages.clear();
     _transferQueue.clear();
     _isProcessingQueue = false;
+    _isPeerTyping = false;
     if (_queueCompleter != null && !_queueCompleter!.isCompleted) {
       _queueCompleter!.complete();
     }

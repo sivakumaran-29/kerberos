@@ -426,6 +426,13 @@ class WebRTCService {
         throw Exception("Transfer Aborted: DataChannel disconnected prematurely during transmission.");
       }
 
+      // Backpressure throttling: prevent buffer overflow on slow networks
+      while (_dataChannel != null &&
+          _dataChannel!.state == RTCDataChannelState.RTCDataChannelOpen &&
+          (_dataChannel!.bufferedAmount ?? 0) > 65536) {
+        await Future.delayed(const Duration(milliseconds: 10));
+      }
+
       final end = (offset + chunkSize < totalBytes) ? offset + chunkSize : totalBytes;
       final chunk = fileBytes.sublist(offset, end);
 
@@ -441,6 +448,13 @@ class WebRTCService {
       } else {
         await Future.delayed(const Duration(milliseconds: 1));
       }
+    }
+
+    // Wait until buffered amount drains before sending EOF
+    while (_dataChannel != null &&
+        _dataChannel!.state == RTCDataChannelState.RTCDataChannelOpen &&
+        (_dataChannel!.bufferedAmount ?? 0) > 0) {
+      await Future.delayed(const Duration(milliseconds: 10));
     }
 
     // Send string EOF sentinel

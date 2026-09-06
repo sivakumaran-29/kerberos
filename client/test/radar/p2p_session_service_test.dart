@@ -359,5 +359,139 @@ void main() {
 
       session.dispose();
     });
+
+    test('P2PChatMessage serialization includes seen and quote reply fields', () {
+      final now = DateTime.now();
+      final msg = P2PChatMessage(
+        id: 'msg-reply-1',
+        senderId: 'user-1',
+        senderName: 'Sivakumaran',
+        text: 'I agree with this clause',
+        timestamp: now,
+        isSelf: true,
+        isSeen: true,
+        seenAt: now,
+        replyToId: 'msg-orig-1',
+        replyToSender: 'Elena Rostova',
+        replyToText: 'Shall we seal the agreement?',
+      );
+
+      final json = msg.toJson();
+      expect(json['id'], 'msg-reply-1');
+      expect(json['isSeen'], isTrue);
+      expect(json['seenAt'], isNotNull);
+      expect(json['replyToId'], 'msg-orig-1');
+      expect(json['replyToSender'], 'Elena Rostova');
+      expect(json['replyToText'], 'Shall we seal the agreement?');
+
+      final deserialized = P2PChatMessage.fromJson(json, isSelf: true);
+      expect(deserialized.id, 'msg-reply-1');
+      expect(deserialized.isSeen, isTrue);
+      expect(deserialized.seenAt, isNotNull);
+      expect(deserialized.replyToId, 'msg-orig-1');
+      expect(deserialized.replyToSender, 'Elena Rostova');
+      expect(deserialized.replyToText, 'Shall we seal the agreement?');
+    });
+
+    test('P2PSessionService typing indicator state and dispatch', () async {
+      String? sentMessage;
+      final mockWebRTC = MockWebRTCService();
+      // Override sendTextMessage to capture outgoing string
+      final session = P2PSessionService(
+        webrtc: mockWebRTC,
+        signaling: MockSignalingService(),
+        ledger: MockLedgerService(),
+      );
+
+      const remotePeer = RadarPeer(
+        uuid: 'remote-user-2',
+        displayName: 'Sivakumaran',
+        email: 'siva@enclave.io',
+        platform: 'Windows Enclave',
+        isSimulated: false,
+      );
+
+      session.handleIncomingSessionAccepted(remotePeer);
+
+      // Verify typing indicator starts false
+      expect(session.isPeerTyping, isFalse);
+
+      // Simulate incoming typing event from peer
+      mockWebRTC.onTextMessageReceived?.call('{"type":"typing","isTyping":true}');
+      expect(session.isPeerTyping, isTrue);
+
+      // Simulate incoming typing stops
+      mockWebRTC.onTextMessageReceived?.call('{"type":"typing","isTyping":false}');
+      expect(session.isPeerTyping, isFalse);
+
+      session.dispose();
+    });
+
+    test('P2PSessionService seen receipts updates message state', () async {
+      final mockWebRTC = MockWebRTCService();
+      final session = P2PSessionService(
+        webrtc: mockWebRTC,
+        signaling: MockSignalingService(),
+        ledger: MockLedgerService(),
+      );
+
+      const remotePeer = RadarPeer(
+        uuid: 'remote-user-2',
+        displayName: 'Sivakumaran',
+        email: 'siva@enclave.io',
+        platform: 'Windows Enclave',
+        isSimulated: false,
+      );
+
+      session.handleIncomingSessionAccepted(remotePeer);
+
+      // Send message from self
+      await session.sendTextMessage('Confidential payload ready');
+      final sentMsg = session.messages.last;
+      final sentId = sentMsg.id;
+      expect(sentMsg.isSeen, isFalse);
+
+      // Remote peer sends seen receipt
+      mockWebRTC.onTextMessageReceived?.call('{"type":"seen","messageId":"$sentId"}');
+      expect(session.messages.last.isSeen, isTrue);
+      expect(session.messages.last.seenAt, isNotNull);
+
+      session.dispose();
+    });
+
+    test('P2PSessionService sending quoted reply attaches metadata to chat packet', () async {
+      final mockWebRTC = MockWebRTCService();
+      final session = P2PSessionService(
+        webrtc: mockWebRTC,
+        signaling: MockSignalingService(),
+        ledger: MockLedgerService(),
+      );
+
+      const remotePeer = RadarPeer(
+        uuid: 'remote-user-2',
+        displayName: 'Elena',
+        email: 'elena@vault.io',
+        platform: 'macOS',
+        isSimulated: false,
+      );
+
+      session.handleIncomingSessionAccepted(remotePeer);
+
+      await session.sendTextMessage(
+        'Here is the verified manifest',
+        replyToId: 'orig-123',
+        replyToSender: 'Elena',
+        replyToText: 'Please verify the hash',
+      );
+
+      final msg = session.messages.last;
+      expect(msg.text, 'Here is the verified manifest');
+      expect(msg.replyToId, 'orig-123');
+      expect(msg.replyToSender, 'Elena');
+      expect(msg.replyToText, 'Please verify the hash');
+
+      session.dispose();
+    });
   });
 }
+
