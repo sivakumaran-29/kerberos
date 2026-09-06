@@ -1,11 +1,11 @@
 {
-    "name": "kerberos_client",
-    "short_name": "kerberos_client",
+    "name": "Obsidian Protocol",
+    "short_name": "Obsidian",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#0B0616",
+    "theme_color": "#C084FC",
+    "description": "Obsidian Protocol - Zero-Trust Decentralized Digital Provenance & Secure P2P Mesh",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

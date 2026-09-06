@@ -1191,7 +1191,7 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
             padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 7),
             child: Row(
               children: [
-                // Left: Logo & Brand (React Bits / Project Kerberos)
+                // Left: Logo & Brand (Obsidian Protocol)
                 InkWell(
                   onTap: () => _navigateToPage(0),
                   borderRadius: BorderRadius.circular(100),
@@ -1216,7 +1216,7 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
                       ),
                       const SizedBox(width: 10),
                       Text(
-                        'React Bits',
+                        'Obsidian Protocol',
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 15,
                           fontWeight: FontWeight.w800,
@@ -1224,7 +1224,7 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
                           color: CyberTheme.textPrimary,
                         ),
                       ),
-                      const SizedBox(width: 7),
+                      const SizedBox(width: 8),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
                         decoration: BoxDecoration(
@@ -1233,7 +1233,7 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
                           border: Border.all(color: CyberTheme.borderAccent),
                         ),
                         child: Text(
-                          'KERBEROS',
+                          'ZERO-TRUST',
                           style: GoogleFonts.jetBrainsMono(
                             fontSize: 8.5,
                             fontWeight: FontWeight.w900,
@@ -1266,126 +1266,14 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
   Widget _buildNavbarProfileCapsule(UserProfile profile) {
     final isProfileActive = _activeModal == ActiveDeckModal.profile;
 
-    return Theme(
-      data: Theme.of(context).copyWith(
-        popupMenuTheme: PopupMenuThemeData(
-          color: const Color(0xF5140D26),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18),
-            side: const BorderSide(color: Color(0x40FFFFFF), width: 1.0),
-          ),
-          elevation: 24,
-        ),
-      ),
-      child: PopupMenuButton<String>(
-        offset: const Offset(0, 48),
-        tooltip: 'Account & Settings',
-        onSelected: (value) {
-          if (value == 'profile') {
-            setState(() => _activeModal = ActiveDeckModal.profile);
-          } else if (value == 'signout') {
-            _confirmSignOut();
-          }
-        },
-        itemBuilder: (context) => [
-          // Header: User Summary
-          PopupMenuItem<String>(
-            enabled: false,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            child: Row(
-              children: [
-                Container(
-                  width: 38,
-                  height: 38,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFFC084FC), Color(0xFF7C3AED)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                  ),
-                  child: Center(
-                    child: Text(
-                      profile.initials,
-                      style: GoogleFonts.plusJakartaSans(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w900,
-                        fontSize: 13,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        profile.displayName,
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 13.5,
-                          fontWeight: FontWeight.w800,
-                          color: Colors.white,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        profile.email,
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 11,
-                          color: CyberTheme.textSecondary,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const PopupMenuDivider(),
-          PopupMenuItem<String>(
-            value: 'profile',
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Row(
-              children: [
-                const Icon(Icons.person_outline_rounded, color: Color(0xFFC084FC), size: 18),
-                const SizedBox(width: 12),
-                Text(
-                  'User Profile',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.white,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const PopupMenuDivider(),
-          PopupMenuItem<String>(
-            value: 'signout',
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Row(
-              children: [
-                const Icon(Icons.logout_rounded, color: Color(0xFFFF6B6B), size: 18),
-                const SizedBox(width: 12),
-                Text(
-                  'Sign Out',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: const Color(0xFFFF6B6B),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-        child: Container(
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(100),
+        onTap: () => _showLuxuryProfileMenu(profile),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOutCubic,
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
           decoration: BoxDecoration(
             color: isProfileActive ? const Color(0x30C084FC) : const Color(0x16FFFFFF),
@@ -1453,6 +1341,51 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
           ),
         ),
       ),
+    );
+  }
+
+  void _showLuxuryProfileMenu(UserProfile profile) {
+    showGeneralDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: 'Dismiss Account Menu',
+      barrierColor: Colors.black.withValues(alpha: 0.40),
+      transitionDuration: const Duration(milliseconds: 220),
+      pageBuilder: (dialogContext, anim1, anim2) {
+        return Stack(
+          children: [
+            Positioned(
+              top: 68,
+              right: 24,
+              child: Material(
+                color: Colors.transparent,
+                child: _LuxuryAccountPopover(
+                  profile: profile,
+                  onOpenProfile: () {
+                    Navigator.of(dialogContext).pop();
+                    setState(() => _activeModal = ActiveDeckModal.profile);
+                  },
+                  onSignOut: () {
+                    Navigator.of(dialogContext).pop();
+                    _confirmSignOut();
+                  },
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+      transitionBuilder: (context, anim, secondaryAnim, child) {
+        final curved = CurvedAnimation(parent: anim, curve: Curves.easeOutCubic);
+        return Transform.scale(
+          scale: 0.94 + (curved.value * 0.06),
+          alignment: Alignment.topRight,
+          child: Opacity(
+            opacity: anim.value.clamp(0.0, 1.0),
+            child: child,
+          ),
+        );
+      },
     );
   }
 
@@ -1760,7 +1693,7 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
               ),
               const SizedBox(height: 16),
               Text(
-                'What is Project Kerberos?',
+                'What is Obsidian Protocol?',
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 34,
                   fontWeight: FontWeight.w900,
@@ -1773,7 +1706,7 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
               ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 760),
                 child: Text(
-                  'Project Kerberos is a decentralized, zero-trust digital provenance ecosystem. In an era saturated with generative AI, deepfakes, and untraceable media manipulation, Kerberos establishes an unbreakable cryptographic chain of custody from capture to peer transfer without relying on third-party cloud servers.',
+                  'Obsidian Protocol is a decentralized, zero-trust digital provenance ecosystem. In an era saturated with generative AI, deepfakes, and untraceable media manipulation, Obsidian Protocol establishes an unbreakable cryptographic chain of custody from capture to peer transfer without relying on third-party cloud servers.',
                   textAlign: TextAlign.center,
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 14,
@@ -3133,5 +3066,394 @@ class CyberHeatMapRenderer extends CustomPainter {
   @override
   bool shouldRepaint(covariant CyberHeatMapRenderer oldDelegate) {
     return oldDelegate.vector != vector;
+  }
+}
+
+/// Ultra-Premium Obsidian Glass Account Popover Card
+class _LuxuryAccountPopover extends StatelessWidget {
+  final UserProfile profile;
+  final VoidCallback onOpenProfile;
+  final VoidCallback onSignOut;
+
+  const _LuxuryAccountPopover({
+    required this.profile,
+    required this.onOpenProfile,
+    required this.onSignOut,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 320,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(22),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color(0xFA160F2B),
+            Color(0xFD0B0616),
+          ],
+        ),
+        border: Border.all(
+          color: const Color(0x35C084FC),
+          width: 1.2,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.75),
+            blurRadius: 36,
+            offset: const Offset(0, 16),
+            spreadRadius: 4,
+          ),
+          BoxShadow(
+            color: CyberTheme.accentColor.withValues(alpha: 0.22),
+            blurRadius: 28,
+            spreadRadius: -2,
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(22),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Header: Identity Info & Online Node Badge
+              Padding(
+                padding: const EdgeInsets.all(18),
+                child: Row(
+                  children: [
+                    Stack(
+                      children: [
+                        Container(
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            gradient: const LinearGradient(
+                              colors: [Color(0xFFC084FC), Color(0xFF7C3AED)],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color(0xFFC084FC).withValues(alpha: 0.45),
+                                blurRadius: 14,
+                                spreadRadius: 1,
+                              ),
+                            ],
+                          ),
+                          child: Center(
+                            child: Text(
+                              profile.initials,
+                              style: GoogleFonts.plusJakartaSans(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w900,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ),
+                        ),
+                        Positioned(
+                          right: 0,
+                          bottom: 0,
+                          child: Container(
+                            width: 12,
+                            height: 12,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF10B981),
+                              shape: BoxShape.circle,
+                              border: Border.all(color: const Color(0xFF130D24), width: 2),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Row(
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  profile.displayName,
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w800,
+                                    color: Colors.white,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                                decoration: BoxDecoration(
+                                  color: const Color(0x22C084FC),
+                                  borderRadius: BorderRadius.circular(100),
+                                  border: Border.all(color: const Color(0x44C084FC)),
+                                ),
+                                child: Text(
+                                  'NODE',
+                                  style: GoogleFonts.jetBrainsMono(
+                                    fontSize: 8,
+                                    fontWeight: FontWeight.w900,
+                                    color: const Color(0xFFC084FC),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            profile.email,
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 11.5,
+                              color: const Color(0xFF94A3B8),
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              // Soft Translucent Divider
+              Container(
+                height: 1,
+                margin: const EdgeInsets.symmetric(horizontal: 14),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      Colors.transparent,
+                      Colors.white.withValues(alpha: 0.10),
+                      Colors.transparent,
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 6),
+
+              // Menu Tile 1: User Profile
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                child: _LuxuryMenuTile(
+                  icon: Icons.person_rounded,
+                  accentColor: const Color(0xFFC084FC),
+                  title: 'User Profile',
+                  subtitle: 'Identity, keys & security',
+                  onTap: onOpenProfile,
+                ),
+              ),
+
+              // Soft Translucent Divider
+              Container(
+                height: 1,
+                margin: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      Colors.transparent,
+                      Colors.white.withValues(alpha: 0.08),
+                      Colors.transparent,
+                    ],
+                  ),
+                ),
+              ),
+
+              // Menu Tile 2: Sign Out
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                child: _LuxuryMenuTile(
+                  icon: Icons.logout_rounded,
+                  accentColor: const Color(0xFFF43F5E),
+                  title: 'Sign Out',
+                  subtitle: 'Disconnect secure session',
+                  isDestructive: true,
+                  onTap: onSignOut,
+                ),
+              ),
+
+              const SizedBox(height: 8),
+
+              // Footer: Protocol Info Chip
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.25),
+                  border: Border(
+                    top: BorderSide(
+                      color: Colors.white.withValues(alpha: 0.05),
+                      width: 1,
+                    ),
+                  ),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'OBSIDIAN PROTOCOL',
+                      style: GoogleFonts.jetBrainsMono(
+                        fontSize: 8.5,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.8,
+                        color: const Color(0x70FFFFFF),
+                      ),
+                    ),
+                    Row(
+                      children: [
+                        Container(
+                          width: 6,
+                          height: 6,
+                          decoration: const BoxDecoration(
+                            color: Color(0xFF10B981),
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(width: 5),
+                        Text(
+                          'ONLINE',
+                          style: GoogleFonts.jetBrainsMono(
+                            fontSize: 8.5,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.6,
+                            color: const Color(0xFF10B981),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _LuxuryMenuTile extends StatefulWidget {
+  final IconData icon;
+  final Color accentColor;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+  final bool isDestructive;
+
+  const _LuxuryMenuTile({
+    required this.icon,
+    required this.accentColor,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+    this.isDestructive = false,
+  });
+
+  @override
+  State<_LuxuryMenuTile> createState() => _LuxuryMenuTileState();
+}
+
+class _LuxuryMenuTileState extends State<_LuxuryMenuTile> {
+  bool _isHovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final hoverBg = widget.isDestructive
+        ? const Color(0x1EF43F5E)
+        : widget.accentColor.withValues(alpha: 0.12);
+    final hoverBorder = widget.isDestructive
+        ? const Color(0x40F43F5E)
+        : widget.accentColor.withValues(alpha: 0.25);
+
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      child: InkWell(
+        onTap: widget.onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOutCubic,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: _isHovered ? hoverBg : Colors.transparent,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: _isHovered ? hoverBorder : Colors.transparent,
+              width: 1,
+            ),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: widget.accentColor.withValues(alpha: _isHovered ? 0.24 : 0.14),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: widget.accentColor.withValues(alpha: _isHovered ? 0.5 : 0.25),
+                    width: 1,
+                  ),
+                ),
+                child: Icon(
+                  widget.icon,
+                  size: 17,
+                  color: widget.isDestructive ? const Color(0xFFFB7185) : widget.accentColor,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      widget.title,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: widget.isDestructive
+                            ? const Color(0xFFFB7185)
+                            : Colors.white,
+                      ),
+                    ),
+                    const SizedBox(height: 1.5),
+                    Text(
+                      widget.subtitle,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 10.5,
+                        color: const Color(0xFF94A3B8),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              AnimatedSlide(
+                duration: const Duration(milliseconds: 180),
+                offset: Offset(_isHovered ? 0.12 : 0.0, 0),
+                child: Icon(
+                  Icons.chevron_right_rounded,
+                  size: 16,
+                  color: _isHovered
+                      ? (widget.isDestructive ? const Color(0xFFFB7185) : Colors.white)
+                      : const Color(0x50FFFFFF),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }

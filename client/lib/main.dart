@@ -219,7 +219,7 @@ class KerberosApp extends ConsumerWidget {
 
     return MaterialApp(
       navigatorKey: rootNavigatorKey,
-      title: 'Project Kerberos',
+      title: 'Obsidian Protocol',
       theme: CyberTheme.darkTheme,
       home: currentUser != null ? const WorkspaceScreen() : const AuthScreen(),
       debugShowCheckedModeBanner: false,

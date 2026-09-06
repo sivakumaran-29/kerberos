@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../theme/cyber_theme.dart';
 
 enum CyberButtonVariant {
-  whitePill, // Solid white pill with dark text (React Bits primary)
+  whitePill, // Solid white pill with dark text (Obsidian Protocol primary)
   glassPill, // Dark translucent glass pill with subtle border
   purple,    // Electric purple accent pill (#A855F7)
   primary,
@@ -58,15 +58,15 @@ class _CyberButtonState extends State<CyberButton> {
 
     switch (widget.variant) {
       case CyberButtonVariant.whitePill:
-        bgColor = _isHovered ? const Color(0xFFF1F5F9) : Colors.white;
-        borderColor = Colors.white;
-        glowColor = Colors.white;
-        textColor = const Color(0xFF120F17);
+        bgColor = _isHovered ? Colors.white : const Color(0xFFF8FAFC);
+        borderColor = _isHovered ? const Color(0xFFE9D5FF) : const Color(0xFFE2E8F0);
+        glowColor = const Color(0xFFA855F7);
+        textColor = const Color(0xFF0F0B1E);
         break;
       case CyberButtonVariant.glassPill:
-        bgColor = _isHovered ? const Color(0x25FFFFFF) : const Color(0x12FFFFFF);
-        borderColor = _isHovered ? const Color(0x44FFFFFF) : const Color(0x22FFFFFF);
-        glowColor = Colors.white;
+        bgColor = _isHovered ? const Color(0x28FFFFFF) : const Color(0x14FFFFFF);
+        borderColor = _isHovered ? const Color(0x80C084FC) : const Color(0x28FFFFFF);
+        glowColor = const Color(0xFFA855F7);
         textColor = Colors.white;
         break;
       case CyberButtonVariant.purple:
@@ -113,9 +113,11 @@ class _CyberButtonState extends State<CyberButton> {
         break;
     }
 
+    final isPopActive = _isHovered && !widget.isLoading && widget.onTap != null && widget.enableHoverPop;
+
     Widget content = AnimatedContainer(
-      duration: const Duration(milliseconds: 150),
-      curve: Curves.easeOut,
+      duration: const Duration(milliseconds: 260),
+      curve: Curves.easeOutCubic,
       width: widget.isExpanded ? double.infinity : widget.width,
       height: widget.height,
       padding: widget.padding,
@@ -128,20 +130,20 @@ class _CyberButtonState extends State<CyberButton> {
             ? [
                 BoxShadow(
                   color: glowColor.withValues(
-                    alpha: widget.variant == CyberButtonVariant.whitePill ? 0.35 : 0.45,
+                    alpha: widget.variant == CyberButtonVariant.whitePill ? 0.32 : 0.40,
                   ),
-                  blurRadius: widget.enableHoverPop ? 24 : 18,
-                  spreadRadius: widget.enableHoverPop ? 2 : 1,
-                  offset: widget.enableHoverPop ? const Offset(0, 8) : const Offset(0, 2),
+                  blurRadius: widget.enableHoverPop ? 22 : 14,
+                  spreadRadius: widget.enableHoverPop ? 1 : 0,
+                  offset: widget.enableHoverPop ? const Offset(0, 6) : const Offset(0, 2),
                 ),
                 if (widget.enableHoverPop)
                   BoxShadow(
-                    color: glowColor.withValues(
-                      alpha: widget.variant == CyberButtonVariant.whitePill ? 0.15 : 0.25,
+                    color: const Color(0xFFA855F7).withValues(
+                      alpha: widget.variant == CyberButtonVariant.whitePill ? 0.20 : 0.28,
                     ),
-                    blurRadius: 40,
-                    spreadRadius: -4,
-                    offset: const Offset(0, 14),
+                    blurRadius: 36,
+                    spreadRadius: 2,
+                    offset: const Offset(0, 10),
                   ),
               ]
             : null,
@@ -161,7 +163,12 @@ class _CyberButtonState extends State<CyberButton> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   if (widget.icon != null) ...[
-                    Icon(widget.icon, size: 16, color: textColor),
+                    AnimatedSlide(
+                      duration: const Duration(milliseconds: 260),
+                      curve: Curves.easeOutCubic,
+                      offset: Offset(isPopActive ? 0.08 : 0.0, 0),
+                      child: Icon(widget.icon, size: 16, color: textColor),
+                    ),
                     const SizedBox(width: 8),
                   ],
                   DefaultTextStyle(
@@ -178,8 +185,6 @@ class _CyberButtonState extends State<CyberButton> {
       ),
     );
 
-    final isPopActive = _isHovered && !widget.isLoading && widget.onTap != null && widget.enableHoverPop;
-
     return MouseRegion(
       cursor: widget.onTap != null && !widget.isLoading
           ? SystemMouseCursors.click
@@ -192,12 +197,12 @@ class _CyberButtonState extends State<CyberButton> {
         onTapCancel: () => setState(() => _isPressed = false),
         onTap: widget.isLoading ? null : widget.onTap,
         child: AnimatedSlide(
-          offset: Offset(0, isPopActive ? -0.08 : 0.0),
-          duration: const Duration(milliseconds: 180),
+          offset: Offset(0, isPopActive ? -0.07 : 0.0),
+          duration: const Duration(milliseconds: 260),
           curve: Curves.easeOutCubic,
           child: AnimatedScale(
-            scale: _isPressed ? 0.96 : (isPopActive ? 1.035 : 1.0),
-            duration: const Duration(milliseconds: 180),
+            scale: _isPressed ? 0.97 : (isPopActive ? 1.028 : 1.0),
+            duration: const Duration(milliseconds: 260),
             curve: Curves.easeOutCubic,
             child: content,
           ),

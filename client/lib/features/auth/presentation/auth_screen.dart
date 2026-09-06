@@ -31,8 +31,9 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
   String? _errorMessage;
   String? _successMessage;
 
-  // Recovery flow state
+  // Recovery & verification flow state
   bool _recoveryCodeSent = false;
+  bool _showManualOtpInput = false;
 
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
@@ -58,6 +59,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
       _errorMessage = null;
       _successMessage = null;
       _recoveryCodeSent = false;
+      _showManualOtpInput = false;
     });
   }
 
@@ -136,7 +138,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
         setState(() {
           _mode = AuthMode.verifyOtp;
           _successMessage =
-              'Verification code sent! Enter the 6-digit code sent to $email, or click the verification link in your inbox.';
+              'Confirmation email dispatched! Follow the link sent to $email, or enter your code below.';
         });
       }
     } catch (e) {
@@ -196,7 +198,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
     try {
       await ref.read(authServiceProvider).resendVerificationEmail(email);
       setState(() {
-        _successMessage = 'A fresh 6-digit verification code has been dispatched to $email.';
+        _successMessage = 'A fresh confirmation email has been dispatched to $email.';
       });
     } catch (e) {
       setState(() {
@@ -280,6 +282,44 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
         setState(() => _isLoading = false);
       }
     }
+  }
+
+  Widget _buildStepItem({required String step, required String text}) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 18,
+          height: 18,
+          decoration: BoxDecoration(
+            color: const Color(0x35C084FC),
+            shape: BoxShape.circle,
+            border: Border.all(color: const Color(0x60C084FC), width: 1),
+          ),
+          child: Center(
+            child: Text(
+              step,
+              style: GoogleFonts.jetBrainsMono(
+                fontSize: 10,
+                fontWeight: FontWeight.w800,
+                color: Colors.white,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            text,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 12,
+              color: const Color(0xFFCBD5E1),
+              height: 1.4,
+            ),
+          ),
+        ),
+      ],
+    );
   }
 
   Widget _buildTextField({
@@ -414,7 +454,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                             const SizedBox(height: 16),
                             Center(
                               child: Text(
-                                'PROJECT KERBEROS',
+                                'OBSIDIAN PROTOCOL',
                                 style: GoogleFonts.plusJakartaSans(
                                   fontSize: 22,
                                   fontWeight: FontWeight.w900,
@@ -544,7 +584,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                                 ),
                               ),
 
-                            // Header for Verify OTP Mode
+                            // Header for Verify Email Mode
                             if (_mode == AuthMode.verifyOtp) ...[
                               Row(
                                 children: [
@@ -555,7 +595,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                                   ),
                                   const SizedBox(width: 6),
                                   Text(
-                                    'Verify Email Address',
+                                    'Check Your Inbox',
                                     style: GoogleFonts.plusJakartaSans(
                                       fontSize: 17,
                                       fontWeight: FontWeight.w800,
@@ -566,7 +606,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                               ),
                               const SizedBox(height: 6),
                               Text(
-                                'Enter the 6-digit confirmation code dispatched to your email, or click the link in the message.',
+                                'A verification email has been dispatched by Supabase Auth to confirm your identity.',
                                 style: GoogleFonts.plusJakartaSans(
                                   fontSize: 12.5,
                                   color: CyberTheme.textSecondary,
@@ -711,39 +751,125 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                               ),
                             ],
 
-                            // OTP Verification Fields
+                            // Email Confirmation & Verification Status
                             if (_mode == AuthMode.verifyOtp) ...[
-                              _buildTextField(
-                                controller: _otpController,
-                                label: '6-Digit Verification Code',
-                                hintText: '123456',
-                                prefixIcon: Icons.pin_outlined,
-                                keyboardType: TextInputType.number,
-                                maxLength: 6,
-                                textAlign: TextAlign.center,
-                                customStyle: GoogleFonts.jetBrainsMono(
-                                  fontSize: 22,
-                                  fontWeight: FontWeight.w800,
-                                  letterSpacing: 8.0,
-                                  color: Colors.white,
+                              Container(
+                                padding: const EdgeInsets.all(16),
+                                decoration: BoxDecoration(
+                                  color: const Color(0x18C084FC),
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(color: const Color(0x35C084FC)),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.all(8),
+                                          decoration: BoxDecoration(
+                                            color: const Color(0x25C084FC),
+                                            borderRadius: BorderRadius.circular(10),
+                                          ),
+                                          child: const Icon(Icons.mark_email_read_outlined, color: Color(0xFFC084FC), size: 20),
+                                        ),
+                                        const SizedBox(width: 12),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                'Confirmation Link Sent',
+                                                style: GoogleFonts.plusJakartaSans(
+                                                  fontSize: 13.5,
+                                                  fontWeight: FontWeight.w800,
+                                                  color: Colors.white,
+                                                ),
+                                              ),
+                                              const SizedBox(height: 2),
+                                              Text(
+                                                _emailController.text.isNotEmpty ? _emailController.text : 'your email',
+                                                style: GoogleFonts.jetBrainsMono(
+                                                  fontSize: 11.5,
+                                                  color: const Color(0xFFE9D5FF),
+                                                ),
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 14),
+                                    Container(
+                                      height: 1,
+                                      color: Colors.white.withValues(alpha: 0.08),
+                                    ),
+                                    const SizedBox(height: 12),
+                                    _buildStepItem(
+                                      step: '1',
+                                      text: 'Open the email from Supabase Auth in your inbox.',
+                                    ),
+                                    const SizedBox(height: 8),
+                                    _buildStepItem(
+                                      step: '2',
+                                      text: 'Click the "Confirm email address" link.',
+                                    ),
+                                    const SizedBox(height: 8),
+                                    _buildStepItem(
+                                      step: '3',
+                                      text: 'Return here and click "I\'ve Confirmed My Email" below.',
+                                    ),
+                                  ],
                                 ),
                               ),
-                              const SizedBox(height: 12),
-                              Align(
-                                alignment: Alignment.centerRight,
-                                child: TextButton.icon(
-                                  onPressed: _isLoading ? null : _resendSignupCode,
-                                  icon: const Icon(Icons.refresh_rounded, size: 15, color: Color(0xFFC084FC)),
-                                  label: Text(
-                                    'Resend code',
-                                    style: GoogleFonts.plusJakartaSans(
-                                      fontSize: 12,
-                                      color: const Color(0xFFC084FC),
-                                      fontWeight: FontWeight.w700,
+                              const SizedBox(height: 10),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  TextButton.icon(
+                                    onPressed: _isLoading ? null : _resendSignupCode,
+                                    icon: const Icon(Icons.refresh_rounded, size: 14, color: Color(0xFFC084FC)),
+                                    label: Text(
+                                      'Resend link',
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 12,
+                                        color: const Color(0xFFC084FC),
+                                        fontWeight: FontWeight.w700,
+                                      ),
                                     ),
                                   ),
-                                ),
+                                  TextButton(
+                                    onPressed: () => setState(() => _showManualOtpInput = !_showManualOtpInput),
+                                    child: Text(
+                                      _showManualOtpInput ? 'Hide code input' : 'Have a 6-digit code?',
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 12,
+                                        color: CyberTheme.textSecondary,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
+                              if (_showManualOtpInput) ...[
+                                const SizedBox(height: 8),
+                                _buildTextField(
+                                  controller: _otpController,
+                                  label: '6-Digit Verification Code',
+                                  hintText: '123456',
+                                  prefixIcon: Icons.pin_outlined,
+                                  keyboardType: TextInputType.number,
+                                  maxLength: 6,
+                                  textAlign: TextAlign.center,
+                                  customStyle: GoogleFonts.jetBrainsMono(
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: 8.0,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ],
                             ],
 
                             // Forgot Password Recovery Step 2 Fields
@@ -874,21 +1000,39 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                                 ),
                               ),
 
-                            if (_mode == AuthMode.verifyOtp)
+                            if (_mode == AuthMode.verifyOtp) ...[
                               CyberButton(
                                 isExpanded: true,
                                 variant: CyberButtonVariant.whitePill,
                                 height: 48,
                                 isLoading: _isLoading,
-                                onTap: _submitVerifyOtp,
+                                onTap: _submitSignIn,
                                 child: Text(
-                                  'Verify & Sign In',
+                                  "I've Confirmed My Email — Sign In",
                                   style: GoogleFonts.plusJakartaSans(
                                     fontSize: 14,
                                     fontWeight: FontWeight.w800,
                                   ),
                                 ),
                               ),
+                              if (_showManualOtpInput) ...[
+                                const SizedBox(height: 10),
+                                CyberButton(
+                                  isExpanded: true,
+                                  variant: CyberButtonVariant.purple,
+                                  height: 44,
+                                  isLoading: _isLoading,
+                                  onTap: _submitVerifyOtp,
+                                  child: Text(
+                                    'Verify 6-Digit Code',
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 13.5,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ],
 
                             if (_mode == AuthMode.forgotPassword)
                               CyberButton(
