@@ -38,6 +38,11 @@ class P2PSessionService extends ChangeNotifier {
   double _transferProgress = 0.0;
   String? _activeTransferringFileName;
 
+  // Outgoing transfer queue for sequential multi-file transmission
+  final List<XFile> _transferQueue = [];
+  bool _isProcessingQueue = false;
+  Completer<void>? _queueCompleter;
+
   // Incoming binary assembly buffer
   P2PFileAttachment? _incomingFilePending;
   final List<int> _incomingBytesBuffer = [];
@@ -65,7 +70,8 @@ class P2PSessionService extends ChangeNotifier {
   bool get isTransferring => _isTransferring;
   double get transferProgress => _transferProgress;
   String? get activeTransferringFileName => _activeTransferringFileName;
-  bool get hasActiveTransfer => _isTransferring || _isSealing;
+  bool get hasActiveTransfer => _isTransferring || _isSealing || _transferQueue.isNotEmpty;
+  int get transferQueueCount => _transferQueue.length;
 
   Function(String peerName, String reason)? onHandshakeDeclined;
 
@@ -201,10 +207,48 @@ class P2PSessionService extends ChangeNotifier {
     }
   }
 
+  /// Enqueues a batch of files and processes them sequentially
+  Future<void> enqueueFiles(List<XFile> files) async {
+    if (files.isEmpty) return;
+    _transferQueue.addAll(files);
+    notifyListeners();
+    if (!_isProcessingQueue) {
+      _queueCompleter = Completer<void>();
+      _processTransferQueue();
+    }
+    await _queueCompleter?.future;
+  }
+
   /// INLINE AUTO-SEALING & TRANSMISSION
-  /// Cryptographically seals the file on the spot using SHA-256 & C2PA manifest,
-  /// registers it into the air-gapped ledger, then streams it across WebRTC.
+  /// Delegates to the transmission queue to guarantee sequential delivery.
   Future<void> sealAndSendFile(XFile file) async {
+    await enqueueFiles([file]);
+  }
+
+  /// Sequentially drains the transfer queue one file at a time
+  Future<void> _processTransferQueue() async {
+    if (_isProcessingQueue) return;
+    _isProcessingQueue = true;
+
+    while (_transferQueue.isNotEmpty) {
+      final file = _transferQueue.removeAt(0);
+      notifyListeners();
+      try {
+        await _sealAndSendSingleFile(file);
+      } catch (e) {
+        _appendSystemNotice('Transfer fault for "${file.name}": $e');
+      }
+    }
+
+    _isProcessingQueue = false;
+    notifyListeners();
+    if (_queueCompleter != null && !_queueCompleter!.isCompleted) {
+      _queueCompleter!.complete();
+    }
+  }
+
+  /// Performs cryptographic sealing, ledger entry, and DataChannel transmission for a single asset.
+  Future<void> _sealAndSendSingleFile(XFile file) async {
     _isSealing = true;
     _sealingStep = 'Reading bitstream & computing SHA-256 digest...';
     notifyListeners();
@@ -260,6 +304,7 @@ class P2PSessionService extends ChangeNotifier {
         isCompleted: false,
         isSealed: true,
         isVoiceNote: isAudio,
+        isLiveRecorded: false, // Selected from system storage, not instant recording
         durationSeconds: 0,
         localFilePath: kIsWeb ? null : file.path,
       );
@@ -295,11 +340,11 @@ class P2PSessionService extends ChangeNotifier {
         _simulatedResponseTimer = Timer(const Duration(milliseconds: 800), () {
           if (isAudio) {
             _appendPeerMessage(
-              'Received voice note "${file.name}". Cryptographic SHA-256 seal [${metadata.sha256Hash.substring(0, 8)}...] validated against C2PA container.',
+              'Received voice note "$fileName". Cryptographic SHA-256 seal [${metadata.sha256Hash.substring(0, 8)}...] validated against C2PA container.',
             );
           } else {
             _appendPeerMessage(
-              'Received "${file.name}" (${(fileBytes.length / 1024).toStringAsFixed(1)} KB). Cryptographic SHA-256 seal [${metadata.sha256Hash.substring(0, 8)}...] validated against C2PA container.',
+              'Received "$fileName" (${(fileBytes.length / 1024).toStringAsFixed(1)} KB). Cryptographic SHA-256 seal [${metadata.sha256Hash.substring(0, 8)}...] validated against C2PA container.',
             );
           }
         });
@@ -316,6 +361,7 @@ class P2PSessionService extends ChangeNotifier {
         'c2paManifestUri': fileAttachment.c2paManifestUri,
         'isSealed': true,
         'isVoiceNote': isAudio,
+        'isLiveRecorded': false,
         'durationSeconds': 0,
       });
       await _webrtc.sendTextMessage(startPacket);
@@ -335,6 +381,7 @@ class P2PSessionService extends ChangeNotifier {
       _activeTransferringFileName = null;
       _appendSystemNotice('File sealing / transfer fault: $e');
       notifyListeners();
+      rethrow;
     }
   }
 
@@ -370,6 +417,7 @@ class P2PSessionService extends ChangeNotifier {
       isCompleted: true,
       isSealed: true,
       isVoiceNote: true,
+      isLiveRecorded: true, // Instant microphone recording!
       durationSeconds: durationSeconds,
       localFilePath: localFilePath,
     );
@@ -407,6 +455,7 @@ class P2PSessionService extends ChangeNotifier {
         'c2paManifestUri': fileAttachment.c2paManifestUri,
         'isSealed': true,
         'isVoiceNote': true,
+        'isLiveRecorded': true,
         'durationSeconds': durationSeconds,
       });
       await _webrtc.sendTextMessage(startPacket);
@@ -595,6 +644,11 @@ class P2PSessionService extends ChangeNotifier {
     _simulatedResponseTimer?.cancel();
     _activePeer = null;
     _messages.clear();
+    _transferQueue.clear();
+    _isProcessingQueue = false;
+    if (_queueCompleter != null && !_queueCompleter!.isCompleted) {
+      _queueCompleter!.complete();
+    }
     _isTransferring = false;
     _isSealing = false;
     _sessionState = P2PSessionState.discovery;

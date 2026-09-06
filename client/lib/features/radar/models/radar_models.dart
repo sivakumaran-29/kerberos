@@ -62,6 +62,7 @@ class P2PFileAttachment {
   final bool isSealed;
   final String? localFilePath;
   final bool isVoiceNote;
+  final bool isLiveRecorded;
   final int durationSeconds;
 
   const P2PFileAttachment({
@@ -76,6 +77,7 @@ class P2PFileAttachment {
     this.isSealed = true,
     this.localFilePath,
     this.isVoiceNote = false,
+    this.isLiveRecorded = false,
     this.durationSeconds = 0,
   });
 
@@ -91,6 +93,7 @@ class P2PFileAttachment {
     bool? isSealed,
     String? localFilePath,
     bool? isVoiceNote,
+    bool? isLiveRecorded,
     int? durationSeconds,
   }) {
     return P2PFileAttachment(
@@ -105,6 +108,7 @@ class P2PFileAttachment {
       isSealed: isSealed ?? this.isSealed,
       localFilePath: localFilePath ?? this.localFilePath,
       isVoiceNote: isVoiceNote ?? this.isVoiceNote,
+      isLiveRecorded: isLiveRecorded ?? this.isLiveRecorded,
       durationSeconds: durationSeconds ?? this.durationSeconds,
     );
   }
@@ -118,6 +122,7 @@ class P2PFileAttachment {
       'c2paManifestUri': c2paManifestUri,
       'isSealed': isSealed,
       'isVoiceNote': isVoiceNote,
+      'isLiveRecorded': isLiveRecorded,
       'durationSeconds': durationSeconds,
     };
   }
@@ -131,6 +136,7 @@ class P2PFileAttachment {
       c2paManifestUri: json['c2paManifestUri']?.toString() ?? '',
       isSealed: json['isSealed'] == true,
       isVoiceNote: json['isVoiceNote'] == true,
+      isLiveRecorded: json['isLiveRecorded'] == true,
       durationSeconds: (json['durationSeconds'] as num?)?.toInt() ?? 0,
     );
   }

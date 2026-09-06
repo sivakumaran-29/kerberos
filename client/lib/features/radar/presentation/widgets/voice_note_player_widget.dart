@@ -129,10 +129,10 @@ class _VoiceNotePlayerWidgetState extends State<VoiceNotePlayerWidget> with Sing
           if (widget.file.bytes != null && widget.file.bytes!.isNotEmpty) {
             await _player.setSource(BytesSource(widget.file.bytes!, mimeType: mimeType));
           }
-          await _player.setPlaybackRate(_speed);
           _isSourceLoaded = true;
         }
         await _player.resume();
+        await _player.setPlaybackRate(_speed);
       }
     } catch (e) {
       debugPrint('[VoiceNotePlayer] Error toggling playback: $e');
@@ -172,8 +172,11 @@ class _VoiceNotePlayerWidgetState extends State<VoiceNotePlayerWidget> with Sing
 
     final primaryAccent = widget.isSelf ? const Color(0xFFC084FC) : const Color(0xFF34D399);
 
+    final screenWidth = MediaQuery.of(context).size.width;
+    final cardMaxWidth = (screenWidth * 0.74).clamp(220.0, 340.0);
+
     return Container(
-      constraints: const BoxConstraints(maxWidth: 340),
+      constraints: BoxConstraints(maxWidth: cardMaxWidth),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
         color: Colors.black.withValues(alpha: 0.45),
@@ -323,9 +326,12 @@ class _VoiceNotePlayerWidgetState extends State<VoiceNotePlayerWidget> with Sing
               const SizedBox(width: 8),
 
               // Download Voice Note Button
-              if (widget.file.bytes != null && widget.file.bytes!.isNotEmpty)
+              // Only displayed for audio files selected from system storage, NOT for instant microphone recordings
+              if (widget.file.bytes != null &&
+                  widget.file.bytes!.isNotEmpty &&
+                  !widget.file.isLiveRecorded)
                 IconButton(
-                  tooltip: 'Download Voice Note',
+                  tooltip: 'Download Audio File',
                   visualDensity: VisualDensity.compact,
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
@@ -355,13 +361,17 @@ class _VoiceNotePlayerWidgetState extends State<VoiceNotePlayerWidget> with Sing
               children: [
                 const Icon(Icons.verified_user_rounded, size: 11, color: Color(0xFF34D399)),
                 const SizedBox(width: 5),
-                Text(
-                  'C2PA HARDWARE ENCLAVE VOICE SEAL',
-                  style: GoogleFonts.jetBrainsMono(
-                    fontSize: 8.5,
-                    fontWeight: FontWeight.w800,
-                    color: const Color(0xFF34D399),
-                    letterSpacing: 0.4,
+                Flexible(
+                  child: Text(
+                    'C2PA HARDWARE ENCLAVE VOICE SEAL',
+                    style: GoogleFonts.jetBrainsMono(
+                      fontSize: 8.5,
+                      fontWeight: FontWeight.w800,
+                      color: const Color(0xFF34D399),
+                      letterSpacing: 0.4,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ],

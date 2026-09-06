@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+import 'package:cross_file/cross_file.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:kerberos_client/features/radar/models/radar_models.dart';
@@ -286,6 +287,75 @@ void main() {
       expect(lastMsg.fileAttachment!.durationSeconds, 8);
       expect(lastMsg.fileAttachment!.isCompleted, isTrue);
       expect(lastMsg.fileAttachment!.isSealed, isTrue);
+      expect(lastMsg.fileAttachment!.isLiveRecorded, isTrue);
+
+      session.dispose();
+    });
+
+    test('P2PFileAttachment handles isLiveRecorded serialization correctly', () {
+      final recordedVoice = P2PFileAttachment(
+        fileId: 'rec-1',
+        fileName: 'mic_record.opus',
+        fileSizeBytes: 1024,
+        sha256Hash: 'hash1',
+        c2paManifestUri: 'urn:c2pa:obsidian:voice:rec1',
+        isVoiceNote: true,
+        isLiveRecorded: true,
+      );
+
+      final selectedAudio = P2PFileAttachment(
+        fileId: 'sel-1',
+        fileName: 'song.mp3',
+        fileSizeBytes: 2048,
+        sha256Hash: 'hash2',
+        c2paManifestUri: 'urn:c2pa:obsidian:voice:sel1',
+        isVoiceNote: true,
+        isLiveRecorded: false,
+      );
+
+      final recJson = recordedVoice.toJson();
+      final selJson = selectedAudio.toJson();
+
+      expect(recJson['isLiveRecorded'], isTrue);
+      expect(selJson['isLiveRecorded'], isFalse);
+
+      final recReconstructed = P2PFileAttachment.fromJson(recJson);
+      final selReconstructed = P2PFileAttachment.fromJson(selJson);
+
+      expect(recReconstructed.isLiveRecorded, isTrue);
+      expect(selReconstructed.isLiveRecorded, isFalse);
+    });
+
+    test('P2PSessionService enqueueFiles processes multiple files sequentially', () async {
+      final mockWebRTC = MockWebRTCService();
+      final session = P2PSessionService(
+        webrtc: mockWebRTC,
+        signaling: MockSignalingService(),
+        ledger: MockLedgerService(),
+      );
+
+      const remotePeer = RadarPeer(
+        uuid: 'remote-user-queue',
+        displayName: 'Queue Peer',
+        email: 'queue@test.com',
+        platform: 'macOS',
+        isSimulated: true,
+      );
+
+      await session.connectToPeer(remotePeer);
+
+      final file1 = XFile.fromData(Uint8List.fromList([1, 2, 3]), name: 'file1.bin', path: 'file1.bin');
+      final file2 = XFile.fromData(Uint8List.fromList([4, 5, 6]), name: 'file2.bin', path: 'file2.bin');
+      final file3 = XFile.fromData(Uint8List.fromList([7, 8, 9]), name: 'file3.bin', path: 'file3.bin');
+
+      await session.enqueueFiles([file1, file2, file3]);
+
+      final fileMessages = session.messages.where((m) => m.fileAttachment != null).toList();
+      expect(fileMessages.length, 3);
+      expect(fileMessages[0].fileAttachment!.fileName, 'file1.bin');
+      expect(fileMessages[1].fileAttachment!.fileName, 'file2.bin');
+      expect(fileMessages[2].fileAttachment!.fileName, 'file3.bin');
+      expect(session.transferQueueCount, 0);
 
       session.dispose();
     });

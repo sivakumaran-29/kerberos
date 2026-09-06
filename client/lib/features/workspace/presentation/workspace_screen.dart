@@ -19,7 +19,6 @@ import '../../../main.dart'; // for ledgerProvider
 import '../../verification/presentation/verification_page.dart';
 import '../../radar/presentation/radar_page.dart';
 import '../../radar/providers/radar_providers.dart';
-import '../../radar/presentation/widgets/navigation_guard_dialog.dart';
 import '../../radar/services/p2p_session_service.dart';
 import '../../radar/models/radar_models.dart';
 
@@ -81,26 +80,14 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
   }
 
   Future<void> _navigateToPage(int index) async {
-    // Navigation Guard: Protect active file transfer from being aborted
+    // Persistent P2P Session: Navigating to other pages (Verify, Studio, Ledger, Home)
+    // keeps the active connection alive in the background.
+    // The session only ends at both ends when either user clicks 'End Session'.
     if (_activeModal == ActiveDeckModal.radar && index != 3) {
       final sessionService = ref.read(p2pSessionServiceProvider);
-      if (sessionService.hasActiveTransfer) {
-        final shouldLeave = await NavigationGuardDialog.show(
-          context,
-          fileName: sessionService.activeTransferringFileName ?? 'digital asset',
-          progress: sessionService.transferProgress,
-        );
-
-        if (!shouldLeave) {
-          return; // Abort navigation and stay on Radar!
-        }
-        await sessionService.disconnect();
-      } else if (sessionService.sessionState == P2PSessionState.connected ||
-          sessionService.sessionState == P2PSessionState.awaitingHandshake) {
-        // Leaving the radar page terminates the active P2P session cleanly
-        await sessionService.disconnect();
+      if (sessionService.sessionState != P2PSessionState.connected) {
+        ref.read(signalingServiceProvider).setInRadar(false);
       }
-      ref.read(signalingServiceProvider).setInRadar(false);
     } else if (index == 3) {
       ref.read(signalingServiceProvider).setInRadar(true);
     }
