@@ -16,10 +16,12 @@ import '../../auth/providers/auth_providers.dart';
 import '../../provenance/providers/provenance_providers.dart';
 import '../../network/providers/network_providers.dart';
 import '../../../main.dart'; // for ledgerProvider
+import '../../verification/presentation/verification_page.dart';
 
 enum ActiveDeckModal {
   none,
   studio,
+  verify,
   radar,
   ledger,
   profile,
@@ -87,12 +89,15 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
           _activeModal = ActiveDeckModal.studio;
           break;
         case 2:
-          _activeModal = ActiveDeckModal.radar;
+          _activeModal = ActiveDeckModal.verify;
           break;
         case 3:
-          _activeModal = ActiveDeckModal.ledger;
+          _activeModal = ActiveDeckModal.radar;
           break;
         case 4:
+          _activeModal = ActiveDeckModal.ledger;
+          break;
+        case 5:
           _activeModal = ActiveDeckModal.profile;
           break;
       }
@@ -953,7 +958,17 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
                         child: _buildProvenanceStudio(provenanceState),
                       ),
 
-                      // Page 2: Radar Page
+                      // Page 2: Verification & QA Audit Page
+                      _buildPageLayout(
+                        title: 'ZERO-TRUST VERIFICATION & ATTACK QA',
+                        icon: Icons.verified_user_rounded,
+                        badge: 'BITSTREAM / STEGANOGRAPHY / JUMBF / SANITIZATION',
+                        description:
+                            'Practical Quality Assurance (QA) testing protocol: Bitstream Shatter, Steganography Heat-Maps, Social Media Scrubbing, and UI Surface Sanitization.',
+                        child: const VerificationPage(),
+                      ),
+
+                      // Page 3: Radar Page
                       _buildPageLayout(
                         title: 'ENCLAVE RADAR',
                         icon: Icons.wifi_tethering,
@@ -968,7 +983,7 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
                         ),
                       ),
 
-                      // Page 3: Ledger Page
+                      // Page 4: Ledger Page
                       _buildPageLayout(
                         title: 'IMMUTABLE ZERO-TRUST LEDGER',
                         icon: Icons.lock_clock,
@@ -978,7 +993,7 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
                         child: _buildLedgerAuditTrail(),
                       ),
 
-                      // Page 4: Dedicated User Profile Page
+                      // Page 5: Dedicated User Profile Page
                       _buildUserProfilePage(userProfile),
                     ],
                   ),
@@ -997,12 +1012,14 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
         return 0; // Home
       case ActiveDeckModal.studio:
         return 1; // Studio
+      case ActiveDeckModal.verify:
+        return 2; // Verify
       case ActiveDeckModal.radar:
-        return 2; // Radar
+        return 3; // Radar
       case ActiveDeckModal.ledger:
-        return 3; // Ledger
+        return 4; // Ledger
       case ActiveDeckModal.profile:
-        return -1; // None of the 4 tabs is active
+        return -1; // None of the 5 tabs is active
     }
   }
 
@@ -1012,12 +1029,14 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
         return 0; // Home
       case ActiveDeckModal.studio:
         return 1; // Studio
+      case ActiveDeckModal.verify:
+        return 2; // Verify
       case ActiveDeckModal.radar:
-        return 2; // Radar
+        return 3; // Radar
       case ActiveDeckModal.ledger:
-        return 3; // Ledger
+        return 4; // Ledger
       case ActiveDeckModal.profile:
-        return 4; // User Profile
+        return 5; // User Profile
     }
   }
 
@@ -1025,9 +1044,9 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
   // ANIMATED SLIDING NAV SEGMENTED CONTROL
   // ==========================================
   Widget _buildNavSegmentedControl() {
-    const double tabWidth = 86.0;
+    const double tabWidth = 80.0;
     const double tabHeight = 36.0;
-    final activeIndex = _activeNavIndex; // 0, 1, 2, 3, or -1
+    final activeIndex = _activeNavIndex; // 0, 1, 2, 3, 4, or -1
 
     return Container(
       padding: const EdgeInsets.all(3.0),
@@ -1037,7 +1056,7 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
         border: Border.all(color: const Color(0x24FFFFFF), width: 1.0),
       ),
       child: SizedBox(
-        width: tabWidth * 4,
+        width: tabWidth * 5,
         height: tabHeight,
         child: Stack(
           children: [
@@ -1097,7 +1116,7 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
               ),
             ),
 
-            // 2. Interactive Navigation Options (Home, Studio, Radar, Ledger)
+            // 2. Interactive Navigation Options (Home, Studio, Verify, Radar, Ledger)
             Row(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -1112,14 +1131,19 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
                   () => _navigateToPage(1),
                 ),
                 _buildNavTabItem(
-                  'Radar',
+                  'Verify',
                   2,
                   () => _navigateToPage(2),
                 ),
                 _buildNavTabItem(
-                  'Ledger',
+                  'Radar',
                   3,
                   () => _navigateToPage(3),
+                ),
+                _buildNavTabItem(
+                  'Ledger',
+                  4,
+                  () => _navigateToPage(4),
                 ),
               ],
             ),
@@ -1132,7 +1156,7 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
   Widget _buildNavTabItem(String title, int index, VoidCallback onTap) {
     final isActive = _activeNavIndex == index;
     return SizedBox(
-      width: 86.0,
+      width: 80.0,
       height: 36.0,
       child: Material(
         color: Colors.transparent,
@@ -1616,14 +1640,31 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
                 ),
               ),
             ),
-            const SizedBox(width: 18),
+            const SizedBox(width: 14),
             CyberButton(
               variant: CyberButtonVariant.glassPill,
               height: 52,
-              padding: const EdgeInsets.symmetric(horizontal: 28),
-              icon: Icons.radar,
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              icon: Icons.verified_user_rounded,
               enableHoverPop: true,
               onTap: () => _navigateToPage(2),
+              child: Text(
+                'Verify & QA Audit',
+                style: GoogleFonts.plusJakartaSans(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 15,
+                  letterSpacing: 0.2,
+                ),
+              ),
+            ),
+            const SizedBox(width: 14),
+            CyberButton(
+              variant: CyberButtonVariant.glassPill,
+              height: 52,
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              icon: Icons.radar,
+              enableHoverPop: true,
+              onTap: () => _navigateToPage(3),
               child: Text(
                 'Launch Radar',
                 style: GoogleFonts.plusJakartaSans(
@@ -1815,16 +1856,19 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
                     step: 'STEP 1',
                     action: 'Ingest & Certify',
                     detail: 'Drag & drop media into Provenance Studio to bind cryptographic hardware manifests.',
+                    onTap: () => _navigateToPage(1),
                   );
                   final step2 = _buildWorkflowStep(
                     step: 'STEP 2',
                     action: 'Discover & AirDrop',
                     detail: 'Locate nearby Windows and Mobile nodes on Radar and beam encrypted payloads directly.',
+                    onTap: () => _navigateToPage(3),
                   );
                   final step3 = _buildWorkflowStep(
                     step: 'STEP 3',
-                    action: 'Verify & Audit',
-                    detail: 'Inspect perceptual neural hashes and review tamper-evident logs on the Zero-Trust Ledger.',
+                    action: 'Verify & QA Audit',
+                    detail: 'Perform multi-vector Zero-Trust QA audits: bitstream shatter, steganography, scrub, & injection.',
+                    onTap: () => _navigateToPage(2),
                   );
 
                   if (isWide) {
@@ -1952,39 +1996,59 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
     required String step,
     required String action,
     required String detail,
+    VoidCallback? onTap,
   }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          step,
-          style: GoogleFonts.jetBrainsMono(
-            fontSize: 10,
-            fontWeight: FontWeight.w800,
-            color: CyberTheme.shardColor,
-            letterSpacing: 1.0,
-          ),
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      hoverColor: const Color(0x10C084FC),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(14),
         ),
-        const SizedBox(height: 4),
-        Text(
-          action,
-          style: GoogleFonts.plusJakartaSans(
-            fontSize: 14,
-            fontWeight: FontWeight.w800,
-            color: Colors.white,
-          ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              step,
+              style: GoogleFonts.jetBrainsMono(
+                fontSize: 10,
+                fontWeight: FontWeight.w800,
+                color: CyberTheme.shardColor,
+                letterSpacing: 1.0,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                Text(
+                  action,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                  ),
+                ),
+                if (onTap != null) ...[
+                  const SizedBox(width: 5),
+                  const Icon(Icons.arrow_forward_rounded, size: 14, color: Color(0xFFC084FC)),
+                ],
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              detail,
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 12,
+                fontWeight: FontWeight.w400,
+                color: CyberTheme.textSecondary,
+                height: 1.45,
+              ),
+            ),
+          ],
         ),
-        const SizedBox(height: 4),
-        Text(
-          detail,
-          style: GoogleFonts.plusJakartaSans(
-            fontSize: 12,
-            fontWeight: FontWeight.w400,
-            color: CyberTheme.textSecondary,
-            height: 1.45,
-          ),
-        ),
-      ],
+      ),
     );
   }
 
