@@ -141,6 +141,13 @@ class P2PSessionService extends ChangeNotifier {
         }
       }
     };
+    _webrtc.onHandshakeAccepted = () {
+      if (_sessionState == P2PSessionState.awaitingHandshake && _activePeer != null) {
+        _sessionState = P2PSessionState.connected;
+        _appendSystemNotice('Handshake accepted by ${_activePeer!.displayName}. Secure P2P DTLS 1.3 session active.');
+        notifyListeners();
+      }
+    };
     _webrtc.onRemoteErrorOccurred = (error) {
       if (_sessionState == P2PSessionState.awaitingHandshake) {
         final peerName = _activePeer?.displayName ?? 'Peer';

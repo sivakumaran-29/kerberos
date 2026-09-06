@@ -30,6 +30,7 @@ class WebRTCService {
   Function(RTCDataChannelState state)? onDataChannelStateChanged;
   Function(String error)? onRemoteErrorOccurred;
   Function(String senderId)? onCancelReceived;
+  Function()? onHandshakeAccepted;
 
   bool get isConnected => _dataChannel?.state == RTCDataChannelState.RTCDataChannelOpen;
   RTCDataChannelState? get dataChannelState => _dataChannel?.state;
@@ -90,6 +91,11 @@ class WebRTCService {
     _signaling.onCancelReceived = (senderId) {
       print(">> [WebRTC] Remote peer cancelled handshake: $senderId");
       onCancelReceived?.call(senderId);
+    };
+    _signaling.onAcceptReceived = (senderId) {
+      print(">> [WebRTC] Remote peer accepted handshake: $senderId");
+      onStatusUpdate?.call("Remote peer approved handshake. Entering secure session...");
+      onHandshakeAccepted?.call();
     };
   }
 
@@ -222,6 +228,15 @@ class WebRTCService {
 
       print(">> [WebRTC] RECEIVER: SDP Answer generated. Sending back to $senderId");
       onStatusUpdate?.call("SDP Answer dispatched. Opening DTLS tunnel...");
+
+      // 1. Dispatch explicit accept signal so Sender immediately transitions into chat session
+      await _signaling.sendSignal(
+        targetId: senderId,
+        type: 'accept',
+        payload: {'accepted': true},
+      );
+
+      // 2. Dispatch SDP Answer
       await _signaling.sendSignal(
         targetId: senderId,
         type: 'answer',
@@ -272,6 +287,9 @@ class WebRTCService {
       final answer = RTCSessionDescription(rawSdp, rawType);
       await _peerConnection!.setRemoteDescription(answer);
       _isRemoteDescriptionSet = true;
+
+      // Remote peer answer received = Handshake approved!
+      onHandshakeAccepted?.call();
 
       await _processQueuedCandidates();
     } catch (e) {

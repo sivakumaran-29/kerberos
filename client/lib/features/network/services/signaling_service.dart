@@ -15,6 +15,7 @@ class SignalingService {
   Function(Map<String, dynamic> iceCandidate)? onIceCandidateReceived;
   Function(String error)? onRemoteErrorReceived;
   Function(String senderId)? onCancelReceived;
+  Function(String senderId)? onAcceptReceived;
   
   // Callback for Peer Discovery
   Function(List<Map<String, dynamic>> peers)? onPeersUpdated;
@@ -241,6 +242,10 @@ class SignalingService {
           case 'cancel':
             print(">> [Signaling] Connection request cancelled by $senderName ($senderId)");
             onCancelReceived?.call(senderId);
+            break;
+          case 'accept':
+            print(">> [Signaling] Connection request accepted by $senderName ($senderId)");
+            onAcceptReceived?.call(senderId);
             break;
           default:
             print(">> [Signaling] Unrecognized signal type: '$type'");

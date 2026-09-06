@@ -25,6 +25,8 @@ class MockWebRTCService extends Fake implements WebRTCService {
   Function(String error)? onRemoteErrorOccurred;
   @override
   Function(String senderId)? onCancelReceived;
+  @override
+  Function()? onHandshakeAccepted;
 
   @override
   Future<void> sendTextMessage(String text) async {}
@@ -42,6 +44,8 @@ class MockWebRTCService extends Fake implements WebRTCService {
 class MockSignalingService extends Fake implements SignalingService {
   @override
   List<Map<String, dynamic>> getDiscoveredPeers() => [];
+  @override
+  Function(String senderId)? onAcceptReceived;
 
   @override
   Future<void> sendSignal({
@@ -394,7 +398,6 @@ void main() {
     });
 
     test('P2PSessionService typing indicator state and dispatch', () async {
-      String? sentMessage;
       final mockWebRTC = MockWebRTCService();
       // Override sendTextMessage to capture outgoing string
       final session = P2PSessionService(
@@ -521,6 +524,36 @@ void main() {
       // User enters chat screen
       session.setChatScreenVisible(true);
       expect(session.isChatScreenVisible, isTrue);
+
+      session.dispose();
+    });
+
+    test('User 1 transitions from awaitingHandshake to connected immediately when onHandshakeAccepted triggers', () async {
+      final mockWebRTC = MockWebRTCService();
+      final session = P2PSessionService(
+        webrtc: mockWebRTC,
+        signaling: MockSignalingService(),
+        ledger: MockLedgerService(),
+      );
+
+      const remotePeer = RadarPeer(
+        uuid: 'remote-user-2',
+        displayName: 'User Two',
+        email: 'user2@enclave.io',
+        platform: 'Windows Enclave',
+        isSimulated: false,
+      );
+
+      // User 1 initiates connection
+      session.connectToPeer(remotePeer);
+      expect(session.sessionState, P2PSessionState.awaitingHandshake);
+
+      // Remote peer approves and sends answer / accept signal
+      mockWebRTC.onHandshakeAccepted?.call();
+
+      // User 1 immediately transitions to connected
+      expect(session.sessionState, P2PSessionState.connected);
+      expect(session.activePeer?.displayName, 'User Two');
 
       session.dispose();
     });
