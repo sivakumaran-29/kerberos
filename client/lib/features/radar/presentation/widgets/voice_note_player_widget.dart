@@ -1,6 +1,4 @@
-import 'dart:io';
 import 'dart:math';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -77,6 +75,21 @@ class _VoiceNotePlayerWidgetState extends State<VoiceNotePlayerWidget> with Sing
   }
 
   @override
+  void didUpdateWidget(covariant VoiceNotePlayerWidget oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.file.bytes != widget.file.bytes) {
+      _isSourceLoaded = false;
+      if (_isPlaying) {
+        _player.stop();
+        _isPlaying = false;
+      }
+    }
+    if (oldWidget.file.durationSeconds != widget.file.durationSeconds && widget.file.durationSeconds > 0) {
+      _totalDuration = Duration(seconds: widget.file.durationSeconds);
+    }
+  }
+
+  @override
   void dispose() {
     _player.stop();
     _player.dispose();
@@ -97,12 +110,24 @@ class _VoiceNotePlayerWidgetState extends State<VoiceNotePlayerWidget> with Sing
         await _player.pause();
       } else {
         if (!_isSourceLoaded) {
-          if (widget.file.localFilePath != null &&
-              !kIsWeb &&
-              File(widget.file.localFilePath!).existsSync()) {
-            await _player.setSource(DeviceFileSource(widget.file.localFilePath!));
-          } else if (widget.file.bytes != null && widget.file.bytes!.isNotEmpty) {
-            await _player.setSource(BytesSource(widget.file.bytes!));
+          String? mimeType;
+          final name = widget.file.fileName.toLowerCase();
+          if (name.endsWith('.webm') || name.endsWith('.opus')) {
+            mimeType = 'audio/webm';
+          } else if (name.endsWith('.m4a') || name.endsWith('.aac')) {
+            mimeType = 'audio/mp4';
+          } else if (name.endsWith('.mp3')) {
+            mimeType = 'audio/mpeg';
+          } else if (name.endsWith('.wav')) {
+            mimeType = 'audio/wav';
+          } else if (name.endsWith('.ogg')) {
+            mimeType = 'audio/ogg';
+          } else if (name.endsWith('.flac')) {
+            mimeType = 'audio/flac';
+          }
+
+          if (widget.file.bytes != null && widget.file.bytes!.isNotEmpty) {
+            await _player.setSource(BytesSource(widget.file.bytes!, mimeType: mimeType));
           }
           await _player.setPlaybackRate(_speed);
           _isSourceLoaded = true;
@@ -190,11 +215,20 @@ class _VoiceNotePlayerWidgetState extends State<VoiceNotePlayerWidget> with Sing
                     ],
                   ),
                   child: Center(
-                    child: Icon(
-                      _isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
-                      color: const Color(0xFF090D16),
-                      size: 24,
-                    ),
+                    child: (!widget.file.isCompleted && (widget.file.bytes == null || widget.file.bytes!.isEmpty))
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF090D16)),
+                            ),
+                          )
+                        : Icon(
+                            _isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                            color: const Color(0xFF090D16),
+                            size: 24,
+                          ),
                   ),
                 ),
               ),

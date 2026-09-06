@@ -95,13 +95,18 @@ class _P2PChatScreenState extends State<P2PChatScreen> {
   Future<void> _startVoiceRecording() async {
     final started = await _voiceNoteService.startRecording();
     if (!started && mounted) {
+      final msg = _voiceNoteService.lastErrorMessage ??
+          'Microphone access denied. Please allow microphone permissions in your browser or choose an audio file.';
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            'Microphone access denied or audio recording failed.',
-            style: GoogleFonts.plusJakartaSans(),
-          ),
+          content: Text(msg, style: GoogleFonts.plusJakartaSans(fontSize: 12.5)),
           backgroundColor: const Color(0xFFF43F5E),
+          duration: const Duration(seconds: 6),
+          action: SnackBarAction(
+            label: 'CHOOSE AUDIO',
+            textColor: Colors.white,
+            onPressed: _pickAudioFileDirectly,
+          ),
         ),
       );
     }
@@ -124,18 +129,42 @@ class _P2PChatScreenState extends State<P2PChatScreen> {
     }
   }
 
-  Future<void> _pickAndSealAsset() async {
+  Future<void> _pickAudioFileDirectly() async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
-      allowedExtensions: ['png', 'jpg', 'jpeg', 'pdf', 'webp', 'bin', 'txt'],
+      allowedExtensions: ['m4a', 'mp3', 'wav', 'aac', 'ogg', 'webm', 'opus', 'flac'],
     );
     if (result != null && result.files.isNotEmpty) {
       final picked = result.files.single;
       XFile xFile;
-      if (picked.bytes != null) {
-        xFile = XFile.fromData(picked.bytes!, name: picked.name);
-      } else if (picked.path != null) {
+      if (picked.path != null && picked.path!.isNotEmpty) {
         xFile = XFile(picked.path!);
+      } else if (picked.bytes != null) {
+        xFile = XFile.fromData(picked.bytes!, name: picked.name, path: picked.name);
+      } else {
+        return;
+      }
+
+      await widget.sessionService.sealAndSendFile(xFile);
+      _scrollToBottom();
+    }
+  }
+
+  Future<void> _pickAndSealAsset() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: [
+        'png', 'jpg', 'jpeg', 'pdf', 'webp', 'bin', 'txt',
+        'm4a', 'mp3', 'wav', 'aac', 'ogg', 'webm', 'opus', 'flac',
+      ],
+    );
+    if (result != null && result.files.isNotEmpty) {
+      final picked = result.files.single;
+      XFile xFile;
+      if (picked.path != null && picked.path!.isNotEmpty) {
+        xFile = XFile(picked.path!);
+      } else if (picked.bytes != null) {
+        xFile = XFile.fromData(picked.bytes!, name: picked.name, path: picked.name);
       } else {
         return;
       }
@@ -442,7 +471,9 @@ class _P2PChatScreenState extends State<P2PChatScreen> {
   // 3. PROVENANCE FILE ATTACHMENT CARD
   // ==========================================
   Widget _buildFileAttachmentCard(P2PFileAttachment file, bool isSelf) {
-    if (file.isVoiceNote) {
+    final ext = file.fileName.split('.').last.toLowerCase();
+    final isAudio = ['m4a', 'mp3', 'wav', 'aac', 'ogg', 'webm', 'opus', 'flac'].contains(ext);
+    if (file.isVoiceNote || isAudio) {
       return VoiceNotePlayerWidget(file: file, isSelf: isSelf);
     }
 
@@ -840,20 +871,45 @@ class _P2PChatScreenState extends State<P2PChatScreen> {
           ),
           const SizedBox(width: 10),
 
-          // WhatsApp-style Voice Note Mic Button
-          InkWell(
-            onTap: _startVoiceRecording,
-            borderRadius: BorderRadius.circular(12),
-            child: Container(
-              width: 42,
-              height: 42,
-              decoration: BoxDecoration(
-                color: const Color(0x22C084FC),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0x40C084FC)),
+          // Send Audio File Button (Direct audio file picker)
+          Tooltip(
+            message: 'Send Audio File (.mp3, .m4a, .wav, .opus)',
+            child: InkWell(
+              onTap: _pickAudioFileDirectly,
+              borderRadius: BorderRadius.circular(12),
+              child: Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: const Color(0x2238BDF8),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0x4038BDF8)),
+                ),
+                child: const Center(
+                  child: Icon(Icons.audio_file_rounded, color: Color(0xFF38BDF8), size: 21),
+                ),
               ),
-              child: const Center(
-                child: Icon(Icons.mic_rounded, color: Color(0xFFC084FC), size: 22),
+            ),
+          ),
+          const SizedBox(width: 8),
+
+          // WhatsApp-style Voice Note Mic Button
+          Tooltip(
+            message: 'Record Voice Note',
+            child: InkWell(
+              onTap: _startVoiceRecording,
+              borderRadius: BorderRadius.circular(12),
+              child: Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: const Color(0x22C084FC),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0x40C084FC)),
+                ),
+                child: const Center(
+                  child: Icon(Icons.mic_rounded, color: Color(0xFFC084FC), size: 22),
+                ),
               ),
             ),
           ),

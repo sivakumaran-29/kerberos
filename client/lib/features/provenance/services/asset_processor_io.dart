@@ -11,8 +11,31 @@ import '../../../ffi/c2pa_bindings.dart';
 class AssetProcessorImpl {
   static Future<AssetMetadata> process(XFile file) async {
     final path = file.path;
-    // Offload heavy cryptographic processing to a background hardware thread
-    return Isolate.run(() => _processInternal(path));
+    if (path.isNotEmpty && File(path).existsSync()) {
+      // Offload heavy cryptographic processing to a background hardware thread
+      return Isolate.run(() => _processInternal(path));
+    }
+
+    // In-memory or virtual XFile fallback (e.g. file picked via bytes)
+    final bytes = await file.readAsBytes();
+    final hashDigest = sha256.convert(bytes);
+    final hashStr = hashDigest.toString();
+
+    String? extractedText;
+    List<double>? perceptualHash;
+    final lowerName = file.name.toLowerCase();
+    if (lowerName.endsWith('.pdf')) {
+      extractedText = _parsePdf(bytes);
+    } else if (lowerName.endsWith('.png') || lowerName.endsWith('.jpg') || lowerName.endsWith('.jpeg')) {
+      perceptualHash = _generatePerceptualHash(bytes);
+    }
+
+    return AssetMetadata(
+      filePath: path.isNotEmpty ? path : file.name,
+      sha256Hash: hashStr,
+      extractedText: extractedText,
+      perceptualHash: perceptualHash,
+    );
   }
 
   static Future<AssetMetadata> _processInternal(String filePath) async {

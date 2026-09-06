@@ -80,7 +80,7 @@ class _UploadScreenState extends ConsumerState<UploadScreen> {
                           Icon(
                             Icons.file_upload_outlined, 
                             size: 48, 
-                            color: _isDragging ? kAccentColor : kTextColor.withOpacity(0.5),
+                            color: _isDragging ? kAccentColor : kTextColor.withValues(alpha: 0.5),
                           ),
                           const SizedBox(height: 24),
                           Text(

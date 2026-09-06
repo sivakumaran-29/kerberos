@@ -5,6 +5,7 @@ import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:cross_file/cross_file.dart';
 import 'package:uuid/uuid.dart';
 import 'package:crypto/crypto.dart';
+import 'package:path/path.dart' as p;
 
 import '../../network/services/webrtc_service.dart';
 import '../../network/services/signaling_service.dart';
@@ -209,6 +210,12 @@ class P2PSessionService extends ChangeNotifier {
     notifyListeners();
 
     try {
+      final fileName = file.name.isNotEmpty
+          ? file.name
+          : (file.path.isNotEmpty ? p.basename(file.path) : 'sealed_asset.bin');
+      final name = fileName.toLowerCase();
+      final isAudio = ['m4a', 'mp3', 'wav', 'aac', 'ogg', 'webm', 'opus', 'flac'].any((e) => name.endsWith('.$e'));
+
       // 1. Process and compute SHA-256 & perceptual hash
       final metadata = await AssetProcessor.processFile(file);
       final fileBytes = await file.readAsBytes();
@@ -216,7 +223,9 @@ class P2PSessionService extends ChangeNotifier {
       _sealingStep = 'Generating C2PA JUMBF claim & Ed25519 signature...';
       notifyListeners();
 
-      final manifestUri = 'urn:c2pa:obsidian:${metadata.sha256Hash.substring(0, 12)}';
+      final manifestUri = isAudio
+          ? 'urn:c2pa:obsidian:voice:${metadata.sha256Hash.substring(0, 12)}'
+          : 'urn:c2pa:obsidian:${metadata.sha256Hash.substring(0, 12)}';
       
       // 2. Seal into air-gapped AES-256 Hive ledger
       final record = ProvenanceRecord(
@@ -224,8 +233,10 @@ class P2PSessionService extends ChangeNotifier {
         originalFileHash: metadata.sha256Hash,
         c2paManifestUri: manifestUri,
         timestamp: DateTime.now(),
-        signature: 'ed25519-p2p-seal-${DateTime.now().millisecondsSinceEpoch}',
-        filePath: file.name,
+        signature: isAudio
+            ? 'ed25519-voice-seal-${DateTime.now().millisecondsSinceEpoch}'
+            : 'ed25519-p2p-seal-${DateTime.now().millisecondsSinceEpoch}',
+        filePath: fileName,
       );
       await _ledger.addRecord(record);
 
@@ -236,11 +247,11 @@ class P2PSessionService extends ChangeNotifier {
       _isSealing = false;
       _isTransferring = true;
       _transferProgress = 0.0;
-      _activeTransferringFileName = file.name;
+      _activeTransferringFileName = fileName;
 
       final fileAttachment = P2PFileAttachment(
         fileId: const Uuid().v4(),
-        fileName: file.name,
+        fileName: fileName,
         fileSizeBytes: fileBytes.length,
         sha256Hash: metadata.sha256Hash,
         c2paManifestUri: manifestUri,
@@ -248,6 +259,9 @@ class P2PSessionService extends ChangeNotifier {
         progress: 0.0,
         isCompleted: false,
         isSealed: true,
+        isVoiceNote: isAudio,
+        durationSeconds: 0,
+        localFilePath: kIsWeb ? null : file.path,
       );
 
       final messageId = const Uuid().v4();
@@ -255,7 +269,7 @@ class P2PSessionService extends ChangeNotifier {
         id: messageId,
         senderId: 'self',
         senderName: 'You',
-        text: 'Sent sealed digital asset: ${file.name}',
+        text: isAudio ? 'Voice note: $fileName' : 'Sent sealed digital asset: $fileName',
         timestamp: DateTime.now(),
         isSelf: true,
         fileAttachment: fileAttachment,
@@ -279,9 +293,15 @@ class P2PSessionService extends ChangeNotifier {
 
         _simulatedResponseTimer?.cancel();
         _simulatedResponseTimer = Timer(const Duration(milliseconds: 800), () {
-          _appendPeerMessage(
-            'Received "${file.name}" (${(fileBytes.length / 1024).toStringAsFixed(1)} KB). Cryptographic SHA-256 seal [${metadata.sha256Hash.substring(0, 8)}...] validated against C2PA container.',
-          );
+          if (isAudio) {
+            _appendPeerMessage(
+              'Received voice note "${file.name}". Cryptographic SHA-256 seal [${metadata.sha256Hash.substring(0, 8)}...] validated against C2PA container.',
+            );
+          } else {
+            _appendPeerMessage(
+              'Received "${file.name}" (${(fileBytes.length / 1024).toStringAsFixed(1)} KB). Cryptographic SHA-256 seal [${metadata.sha256Hash.substring(0, 8)}...] validated against C2PA container.',
+            );
+          }
         });
         return;
       }
@@ -295,6 +315,8 @@ class P2PSessionService extends ChangeNotifier {
         'sha256Hash': fileAttachment.sha256Hash,
         'c2paManifestUri': fileAttachment.c2paManifestUri,
         'isSealed': true,
+        'isVoiceNote': isAudio,
+        'durationSeconds': 0,
       });
       await _webrtc.sendTextMessage(startPacket);
 
