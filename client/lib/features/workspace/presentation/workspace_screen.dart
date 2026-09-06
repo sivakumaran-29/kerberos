@@ -17,6 +17,11 @@ import '../../provenance/providers/provenance_providers.dart';
 import '../../network/providers/network_providers.dart';
 import '../../../main.dart'; // for ledgerProvider
 import '../../verification/presentation/verification_page.dart';
+import '../../radar/presentation/radar_page.dart';
+import '../../radar/providers/radar_providers.dart';
+import '../../radar/presentation/widgets/navigation_guard_dialog.dart';
+import '../../radar/services/p2p_session_service.dart';
+import '../../radar/models/radar_models.dart';
 
 enum ActiveDeckModal {
   none,
@@ -35,11 +40,8 @@ class WorkspaceScreen extends ConsumerStatefulWidget {
 }
 
 class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTickerProviderStateMixin {
-  final TextEditingController _targetController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   bool _isDragging = false;
-  double _receiverProgress = 0.0;
-  bool _isReceiving = false;
   ActiveDeckModal _activeModal = ActiveDeckModal.none;
   late AnimationController _pulseController;
 
@@ -69,7 +71,6 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
 
   @override
   void dispose() {
-    _targetController.dispose();
     _scrollController.dispose();
     _pulseController.dispose();
     _profileDisplayNameController.dispose();
@@ -79,7 +80,27 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
     super.dispose();
   }
 
-  void _navigateToPage(int index) {
+  Future<void> _navigateToPage(int index) async {
+    // Navigation Guard: Protect active file transfer from being aborted
+    if (_activeModal == ActiveDeckModal.radar && index != 3) {
+      final sessionService = ref.read(p2pSessionServiceProvider);
+      if (sessionService.hasActiveTransfer) {
+        final shouldLeave = await NavigationGuardDialog.show(
+          context,
+          fileName: sessionService.activeTransferringFileName ?? 'digital asset',
+          progress: sessionService.transferProgress,
+        );
+
+        if (!shouldLeave) {
+          return; // Abort navigation and stay on Radar!
+        }
+        await sessionService.disconnect();
+      } else if (sessionService.sessionState == P2PSessionState.connected) {
+        // Leaving the radar page terminates the active P2P session cleanly
+        await sessionService.disconnect();
+      }
+    }
+
     setState(() {
       switch (index) {
         case 0:
@@ -871,38 +892,7 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
   Widget build(BuildContext context) {
     final userProfile = ref.watch(userProfileProvider);
     final provenanceState = ref.watch(provenanceTaskNotifierProvider);
-    final activeStatus = ref.watch(transferStatusNotifierProvider);
-    final progressState = ref.watch(transferProgressNotifierProvider);
     final incomingRequest = ref.watch(incomingTransferNotifierProvider);
-    final peers = ref.watch(discoveredPeersNotifierProvider);
-    final webrtc = ref.watch(webRtcServiceProvider);
-
-    // Bind receiver chunk tracking
-    webrtc.onFileChunkReceived = (data) {
-      if (!_isReceiving) {
-        setState(() {
-          _isReceiving = true;
-          _receiverProgress = 0.5;
-        });
-      }
-    };
-
-    webrtc.onTransferComplete = () {
-      setState(() {
-        _isReceiving = false;
-        _receiverProgress = 1.0;
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'INCOMING ASSET SECURELY RECEIVED & VERIFIED IN LEDGER.',
-            style: GoogleFonts.jetBrainsMono(fontWeight: FontWeight.bold),
-          ),
-          backgroundColor: CyberTheme.emerald,
-          duration: const Duration(seconds: 4),
-        ),
-      );
-    };
 
     return Scaffold(
       backgroundColor: CyberTheme.background,
@@ -968,18 +958,16 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
                         child: const VerificationPage(),
                       ),
 
-                      // Page 3: Radar Page
-                      _buildPageLayout(
-                        title: 'ENCLAVE RADAR',
-                        icon: Icons.wifi_tethering,
-                        badge: 'WEBRTC DTLS 1.3 / SCTP P2P',
-                        description:
-                            'Peer-to-peer AirDrop discovery mesh. Stream hardware-sealed assets directly between nodes without intermediary cloud storage.',
-                        child: _buildSecureTransferRadar(
-                          peers: peers,
-                          activeStatus: activeStatus,
-                          progressState: progressState,
-                          incomingRequest: incomingRequest,
+                      // Page 3: Next-Gen Enclave Radar (Mentimeter Orbital Mesh + P2P Chat + Inline Sealing)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(28, 4, 28, 16),
+                        child: Center(
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 1400),
+                            child: RadarPage(
+                              onNavigateToTab: (tabIndex) => _navigateToPage(tabIndex),
+                            ),
+                          ),
                         ),
                       ),
 
@@ -1486,7 +1474,16 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
             padding: const EdgeInsets.symmetric(horizontal: 16),
             onTap: () {
               ref.read(webRtcServiceProvider).acceptIncomingTransfer(request.senderId, request.offerPayload);
-              setState(() => _activeModal = ActiveDeckModal.radar);
+              final peer = RadarPeer(
+                uuid: request.senderId,
+                displayName: request.senderName,
+                email: request.senderEmail,
+                platform: 'Mesh Node',
+                pingMs: 16,
+              );
+              ref.read(p2pSessionServiceProvider).handleIncomingSessionAccepted(peer);
+              ref.read(incomingTransferNotifierProvider.notifier).clear();
+              _navigateToPage(3);
             },
             child: const Text('ACCEPT'),
           ),
@@ -2526,440 +2523,6 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
           ),
         ),
       ],
-    );
-  }
-
-  // ==========================================
-  // BENTO CARD 2: ENCLAVE RADAR (SECURE AIRDROP)
-  // ==========================================
-  Widget _buildSecureTransferRadar({
-    required List<Map<String, dynamic>> peers,
-    required String activeStatus,
-    required AsyncValue<double> progressState,
-    required IncomingTransferRequest? incomingRequest,
-  }) {
-    return GlassContainer(
-      glow: true,
-      glowColor: CyberTheme.emerald,
-      borderColor: CyberTheme.border,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Bento Card Header
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: CyberTheme.emerald.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: CyberTheme.borderEmerald),
-                    ),
-                    child: const Icon(Icons.radar, color: CyberTheme.emerald, size: 20),
-                  ),
-                  const SizedBox(width: 12),
-                  const Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'ENCLAVE RADAR',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 1.0,
-                          color: CyberTheme.textPrimary,
-                        ),
-                      ),
-                      Text(
-                        'WEBRTC DTLS 1.3 / SCTP P2P AIRDROP',
-                        style: TextStyle(fontSize: 10, color: CyberTheme.textMuted, letterSpacing: 0.5),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-              InkWell(
-                onTap: () => ref.invalidate(discoveredPeersNotifierProvider),
-                borderRadius: BorderRadius.circular(100),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-                  decoration: BoxDecoration(
-                    color: CyberTheme.surfaceElevated,
-                    borderRadius: BorderRadius.circular(100),
-                    border: Border.all(color: CyberTheme.border),
-                  ),
-                  child: const Row(
-                    children: [
-                      Icon(Icons.refresh, size: 12, color: CyberTheme.cyan),
-                      SizedBox(width: 6),
-                      Text('SCAN', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: CyberTheme.cyan)),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-
-          // In-Line AirDrop Notification Prompt
-          if (incomingRequest != null) ...[
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    CyberTheme.emerald.withValues(alpha: 0.2),
-                    CyberTheme.surfaceElevated,
-                  ],
-                ),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: CyberTheme.emeraldLight, width: 1.5),
-                boxShadow: [
-                  BoxShadow(
-                    color: CyberTheme.emerald.withValues(alpha: 0.2),
-                    blurRadius: 20,
-                    spreadRadius: 2,
-                  ),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(6),
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: CyberTheme.emerald.withValues(alpha: 0.2),
-                        ),
-                        child: const Icon(Icons.security, color: CyberTheme.emerald, size: 18),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          'INCOMING AIRDROP: ${incomingRequest.senderName.toUpperCase()}',
-                          style: const TextStyle(
-                            color: CyberTheme.emerald,
-                            fontWeight: FontWeight.w800,
-                            fontSize: 12,
-                            letterSpacing: 1.0,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Agent ${incomingRequest.senderName} (${incomingRequest.senderEmail.isNotEmpty ? incomingRequest.senderEmail : incomingRequest.senderId}) is requesting to stream an encrypted asset payload.',
-                    style: const TextStyle(fontSize: 11, color: CyberTheme.textPrimary, height: 1.4),
-                  ),
-                  const SizedBox(height: 14),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      CyberButton(
-                        variant: CyberButtonVariant.danger,
-                        height: 34,
-                        onTap: () {
-                          ref.read(webRtcServiceProvider).declineIncomingTransfer(incomingRequest.senderId);
-                          ref.read(incomingTransferNotifierProvider.notifier).clear();
-                        },
-                        child: const Text('DECLINE'),
-                      ),
-                      const SizedBox(width: 10),
-                      CyberButton(
-                        variant: CyberButtonVariant.emerald,
-                        height: 34,
-                        onTap: () {
-                          ref.read(webRtcServiceProvider).acceptIncomingTransfer(incomingRequest.senderId, incomingRequest.offerPayload);
-                          ref.read(incomingTransferNotifierProvider.notifier).clear();
-                        },
-                        child: const Text('ACCEPT TRANSFER'),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 18),
-          ],
-
-          // Discovered Agents Radar List
-          const Text(
-            'ACTIVE AGENTS IN RANGE (CLICK TO AIRDROP):',
-            style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 0.8, color: CyberTheme.textMuted),
-          ),
-          const SizedBox(height: 10),
-
-          Container(
-            constraints: const BoxConstraints(minHeight: 180, maxHeight: 240),
-            decoration: BoxDecoration(
-              color: CyberTheme.surfaceElevated.withValues(alpha: 0.5),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: CyberTheme.border),
-            ),
-            child: peers.isEmpty
-                ? Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        AnimatedBuilder(
-                          animation: _pulseController,
-                          builder: (context, child) {
-                            return Container(
-                              width: 44,
-                              height: 44,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: CyberTheme.cyan.withValues(alpha: 0.08),
-                                border: Border.all(
-                                  color: CyberTheme.cyan.withValues(alpha: 0.2 + (_pulseController.value * 0.4)),
-                                  width: 1.5,
-                                ),
-                              ),
-                              child: const Icon(Icons.radar, color: CyberTheme.cyan, size: 22),
-                            );
-                          },
-                        ),
-                        const SizedBox(height: 12),
-                        const Text(
-                          'Pinging Supabase enclave channel for online peers...',
-                          style: TextStyle(fontSize: 11, color: CyberTheme.textMuted, fontStyle: FontStyle.italic),
-                        ),
-                      ],
-                    ),
-                  )
-                : ListView.builder(
-                    padding: const EdgeInsets.all(10),
-                    shrinkWrap: true,
-                    itemCount: peers.length,
-                    itemBuilder: (context, index) {
-                      final peer = peers[index];
-                      final peerUuid = peer['uuid']?.toString() ?? '';
-                      final peerName = peer['display_name']?.toString() ?? 'Kerberos Agent';
-                      final peerEmail = peer['email']?.toString() ?? '';
-                      final peerPlatform = peer['platform']?.toString() ?? 'Kerberos Agent';
-                      final isSelected = _targetController.text == peerUuid;
-
-                      return Container(
-                        margin: const EdgeInsets.only(bottom: 8),
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: isSelected ? CyberTheme.emerald.withValues(alpha: 0.12) : CyberTheme.surface,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: isSelected ? CyberTheme.emeraldLight : CyberTheme.border,
-                            width: isSelected ? 1.5 : 1.0,
-                          ),
-                        ),
-                        child: Row(
-                          children: [
-                            CircleAvatar(
-                              radius: 18,
-                              backgroundColor: isSelected ? CyberTheme.emerald : CyberTheme.cyan.withValues(alpha: 0.2),
-                              child: Icon(
-                                Icons.person,
-                                size: 18,
-                                color: isSelected ? Colors.black : CyberTheme.cyan,
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    children: [
-                                      Text(
-                                        peerName,
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.w800,
-                                          fontSize: 13,
-                                          color: CyberTheme.textPrimary,
-                                        ),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                        decoration: BoxDecoration(
-                                          color: CyberTheme.surfaceElevated,
-                                          borderRadius: BorderRadius.circular(4),
-                                          border: Border.all(color: CyberTheme.border),
-                                        ),
-                                        child: Text(
-                                          peerPlatform,
-                                          style: const TextStyle(fontSize: 9, color: CyberTheme.cyanLight, fontWeight: FontWeight.bold),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    peerEmail.isNotEmpty ? '$peerEmail • $peerUuid' : peerUuid,
-                                    style: const TextStyle(fontSize: 10, color: CyberTheme.textMuted, fontFamily: 'monospace'),
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ],
-                              ),
-                            ),
-                            CyberButton(
-                              variant: isSelected ? CyberButtonVariant.emerald : CyberButtonVariant.purple,
-                              height: 32,
-                              padding: const EdgeInsets.symmetric(horizontal: 14),
-                              onTap: () {
-                                setState(() {
-                                  _targetController.text = peerUuid;
-                                });
-                                ref.read(transferProgressNotifierProvider.notifier).startTransfer(peerUuid);
-                              },
-                              child: Text(isSelected ? 'ENGAGE' : 'AIRDROP'),
-                            ),
-                          ],
-                        ),
-                      );
-                    },
-                  ),
-          ),
-          const SizedBox(height: 16),
-
-          // Manual UUID Input & Handshake Button
-          Row(
-            children: [
-              Expanded(
-                child: Container(
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: CyberTheme.surface,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: CyberTheme.borderBright),
-                  ),
-                  padding: const EdgeInsets.symmetric(horizontal: 14),
-                  child: TextField(
-                    controller: _targetController,
-                    style: const TextStyle(color: CyberTheme.textPrimary, fontSize: 12, fontFamily: 'monospace'),
-                    decoration: const InputDecoration(
-                      border: InputBorder.none,
-                      hintText: 'SELECT AGENT ABOVE OR ENTER TARGET UUID...',
-                      hintStyle: TextStyle(color: CyberTheme.textMuted, fontSize: 11),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              CyberButton(
-                variant: CyberButtonVariant.whitePill,
-                height: 44,
-                padding: const EdgeInsets.symmetric(horizontal: 22),
-                isLoading: progressState.isLoading,
-                onTap: () {
-                  if (_targetController.text.isNotEmpty) {
-                    ref.read(transferProgressNotifierProvider.notifier).startTransfer(_targetController.text.trim());
-                  }
-                },
-                child: const Text('START TRANSFER'),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-
-          // Live DTLS Telemetry Bar
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            decoration: BoxDecoration(
-              color: CyberTheme.surfaceElevated,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: CyberTheme.border),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.sensors, color: CyberTheme.cyan, size: 16),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    activeStatus,
-                    style: const TextStyle(
-                      color: CyberTheme.textPrimary,
-                      fontSize: 11,
-                      fontFamily: 'monospace',
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 14),
-
-          // Progress Bars
-          if (_isReceiving) ...[
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text('RECEIVING ENCRYPTED ASSET OVER DTLS TUNNEL...', style: TextStyle(color: CyberTheme.emerald, fontSize: 11, fontWeight: FontWeight.bold)),
-                Text('${(_receiverProgress * 100).toInt()}%', style: const TextStyle(color: CyberTheme.emerald, fontSize: 11, fontWeight: FontWeight.bold)),
-              ],
-            ),
-            const SizedBox(height: 8),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(6),
-              child: LinearProgressIndicator(
-                value: _receiverProgress > 0 ? _receiverProgress : null,
-                backgroundColor: CyberTheme.surface,
-                valueColor: const AlwaysStoppedAnimation<Color>(CyberTheme.emerald),
-                minHeight: 8,
-              ),
-            ),
-            const SizedBox(height: 14),
-          ],
-
-          progressState.when(
-            data: (progress) {
-              if (progress > 0 && progress < 1.0) {
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text('TRANSMITTING STREAM OVER SCTP DATACHANNEL...', style: TextStyle(color: CyberTheme.cyan, fontSize: 11, fontWeight: FontWeight.bold)),
-                        Text('${(progress * 100).toInt()}%', style: const TextStyle(color: CyberTheme.cyan, fontSize: 11, fontWeight: FontWeight.bold)),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(6),
-                      child: LinearProgressIndicator(
-                        value: progress,
-                        backgroundColor: CyberTheme.surface,
-                        valueColor: const AlwaysStoppedAnimation<Color>(CyberTheme.cyan),
-                        minHeight: 8,
-                      ),
-                    ),
-                  ],
-                );
-              }
-              return const SizedBox.shrink();
-            },
-            error: (err, stack) => Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: CyberTheme.coral.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: CyberTheme.coral),
-              ),
-              child: Text(
-                err.toString().replaceFirst(RegExp(r'^Exception:\s*'), ''),
-                style: const TextStyle(color: Colors.white, fontSize: 11, fontFamily: 'monospace'),
-              ),
-            ),
-            loading: () => const SizedBox.shrink(),
-          ),
-        ],
-      ),
     );
   }
 

@@ -28,14 +28,11 @@ class AssetProcessorImpl {
     final hashStr = hashDigest.toString();
 
     // 2. FFI Rust C2PA Injection
-    String extractedManifest = "";
     try {
       final engine = C2paEngine();
       final claimData = '{"author": "Kerberos Agent", "hash": "$hashStr"}';
-      extractedManifest = engine.signAsset(filePath, claimData);
-    } catch (e) {
-      extractedManifest = "FFI Exception Handled (Mock Active): $e";
-    }
+      engine.signAsset(filePath, claimData);
+    } catch (_) {}
 
     // 3. Document Parsing & Steganography Vector
     String? extractedText;

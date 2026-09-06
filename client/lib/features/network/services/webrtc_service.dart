@@ -26,6 +26,11 @@ class WebRTCService {
   Function()? onTransferComplete;
   Function(double progress)? onTransferProgress;
   Function(String status)? onStatusUpdate;
+  Function(String text)? onTextMessageReceived;
+  Function(RTCDataChannelState state)? onDataChannelStateChanged;
+
+  bool get isConnected => _dataChannel?.state == RTCDataChannelState.RTCDataChannelOpen;
+  RTCDataChannelState? get dataChannelState => _dataChannel?.state;
 
   // WebRTC ICE Configuration: Standard W3C STUN + OpenRelay TURN
   static const Map<String, dynamic> _iceConfiguration = {
@@ -314,18 +319,29 @@ class WebRTCService {
           print(">> [WebRTC] RECEIVER: EOF received. Asset transfer complete.");
           onStatusUpdate?.call("Asset received and verified successfully.");
           onTransferComplete?.call();
+        } else {
+          onTextMessageReceived?.call(message.text);
         }
       }
     };
 
     channel.onDataChannelState = (RTCDataChannelState state) {
       print(">> [WebRTC] DATA CHANNEL STATE: $state");
+      onDataChannelStateChanged?.call(state);
       if (state == RTCDataChannelState.RTCDataChannelOpen) {
         onStatusUpdate?.call("DataChannel Open! Ready for transmission.");
       } else if (state == RTCDataChannelState.RTCDataChannelClosed) {
         onStatusUpdate?.call("DataChannel Closed.");
       }
     };
+  }
+
+  /// Sends a UTF-8 text message or JSON packet across the active DataChannel.
+  Future<void> sendTextMessage(String text) async {
+    if (_dataChannel == null || _dataChannel!.state != RTCDataChannelState.RTCDataChannelOpen) {
+      throw Exception("DataChannel is not open (current state: ${_dataChannel?.state})");
+    }
+    await _dataChannel!.send(RTCDataChannelMessage(text));
   }
 
   /// Streams binary payload over the DataChannel in 16KB chunks.
