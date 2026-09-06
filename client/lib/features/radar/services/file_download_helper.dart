@@ -1,49 +1,21 @@
-import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:file_picker/file_picker.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:path/path.dart' as p;
 import 'package:google_fonts/google_fonts.dart';
+
+import 'file_download_stub.dart'
+    if (dart.library.io) 'file_download_io.dart'
+    if (dart.library.html) 'file_download_web.dart';
 
 /// Helper to download and save files cross-platform (Windows desktop, Web, macOS, Linux, Mobile).
 class FileDownloadHelper {
-  /// Prompts user with save dialog and writes bytes to chosen file path.
+  /// Prompts user with save dialog or triggers direct browser download and saves bytes.
   static Future<String?> downloadFile({
     required BuildContext context,
     required String fileName,
     required Uint8List bytes,
   }) async {
     try {
-      String? savedPath;
-
-      if (kIsWeb) {
-        // Web: file_picker saveFile with bytes prompts browser download directly
-        savedPath = await FilePicker.platform.saveFile(
-          dialogTitle: 'Download $fileName',
-          fileName: fileName,
-          bytes: bytes,
-        );
-      } else {
-        // Desktop / Mobile: Open native Save File Dialog
-        savedPath = await FilePicker.platform.saveFile(
-          dialogTitle: 'Save $fileName',
-          fileName: fileName,
-          bytes: bytes,
-        );
-
-        if (savedPath != null) {
-          final file = File(savedPath);
-          await file.writeAsBytes(bytes);
-        } else {
-          // Fallback: If user canceled dialog, allow quick saving to Downloads folder
-          final downloadsDir = await getDownloadsDirectory() ?? await getApplicationDocumentsDirectory();
-          final fallbackPath = p.join(downloadsDir.path, fileName);
-          final file = File(fallbackPath);
-          await file.writeAsBytes(bytes);
-          savedPath = fallbackPath;
-        }
-      }
+      final savedPath = await saveFileBytesPlatform(fileName, bytes);
 
       if (context.mounted && savedPath != null) {
         ScaffoldMessenger.of(context).showSnackBar(

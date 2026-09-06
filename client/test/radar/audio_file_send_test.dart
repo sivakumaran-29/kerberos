@@ -2,7 +2,6 @@ import 'dart:typed_data';
 import 'package:cross_file/cross_file.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
-import 'package:kerberos_client/features/radar/models/radar_models.dart';
 import 'package:kerberos_client/features/radar/services/p2p_session_service.dart';
 import 'package:kerberos_client/features/network/services/webrtc_service.dart';
 import 'package:kerberos_client/features/network/services/signaling_service.dart';
@@ -44,7 +43,7 @@ class MockWebRTCService extends Fake implements WebRTCService {
 
 class MockSignalingService extends Fake implements SignalingService {}
 
-class MockLedgerService implements LedgerService {
+class MockLedgerService extends Fake implements LedgerService {
   final List<ProvenanceRecord> savedRecords = [];
 
   @override
@@ -52,19 +51,13 @@ class MockLedgerService implements LedgerService {
     savedRecords.add(record);
   }
 
-  @override
   List<ProvenanceRecord> get records => savedRecords;
 
-  @override
   Future<void> clearAll() async {
     savedRecords.clear();
   }
 
-  @override
   Future<void> init() async {}
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 void main() {
