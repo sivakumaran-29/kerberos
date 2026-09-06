@@ -23,6 +23,7 @@ class CyberButton extends StatefulWidget {
   final EdgeInsetsGeometry padding;
   final bool isExpanded;
   final double borderRadius;
+  final bool enableHoverPop;
 
   const CyberButton({
     super.key,
@@ -36,6 +37,7 @@ class CyberButton extends StatefulWidget {
     this.padding = const EdgeInsets.symmetric(horizontal: 22),
     this.isExpanded = false,
     this.borderRadius = 100.0, // Default to rounded-full pill
+    this.enableHoverPop = true,
   });
 
   @override
@@ -125,11 +127,22 @@ class _CyberButtonState extends State<CyberButton> {
         boxShadow: _isHovered && widget.onTap != null
             ? [
                 BoxShadow(
-                  color: glowColor.withValues(alpha: widget.variant == CyberButtonVariant.whitePill ? 0.25 : 0.4),
-                  blurRadius: 18,
-                  spreadRadius: 1,
-                  offset: const Offset(0, 2),
+                  color: glowColor.withValues(
+                    alpha: widget.variant == CyberButtonVariant.whitePill ? 0.35 : 0.45,
+                  ),
+                  blurRadius: widget.enableHoverPop ? 24 : 18,
+                  spreadRadius: widget.enableHoverPop ? 2 : 1,
+                  offset: widget.enableHoverPop ? const Offset(0, 8) : const Offset(0, 2),
                 ),
+                if (widget.enableHoverPop)
+                  BoxShadow(
+                    color: glowColor.withValues(
+                      alpha: widget.variant == CyberButtonVariant.whitePill ? 0.15 : 0.25,
+                    ),
+                    blurRadius: 40,
+                    spreadRadius: -4,
+                    offset: const Offset(0, 14),
+                  ),
               ]
             : null,
       ),
@@ -165,6 +178,8 @@ class _CyberButtonState extends State<CyberButton> {
       ),
     );
 
+    final isPopActive = _isHovered && !widget.isLoading && widget.onTap != null && widget.enableHoverPop;
+
     return MouseRegion(
       cursor: widget.onTap != null && !widget.isLoading
           ? SystemMouseCursors.click
@@ -176,10 +191,16 @@ class _CyberButtonState extends State<CyberButton> {
         onTapUp: (_) => setState(() => _isPressed = false),
         onTapCancel: () => setState(() => _isPressed = false),
         onTap: widget.isLoading ? null : widget.onTap,
-        child: AnimatedScale(
-          scale: _isPressed ? 0.97 : 1.0,
-          duration: const Duration(milliseconds: 100),
-          child: content,
+        child: AnimatedSlide(
+          offset: Offset(0, isPopActive ? -0.08 : 0.0),
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOutCubic,
+          child: AnimatedScale(
+            scale: _isPressed ? 0.96 : (isPopActive ? 1.035 : 1.0),
+            duration: const Duration(milliseconds: 180),
+            curve: Curves.easeOutCubic,
+            child: content,
+          ),
         ),
       ),
     );

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class AuthService {
@@ -12,9 +13,21 @@ class AuthService {
 
   bool get isAuthenticated => _supabase.auth.currentUser != null;
 
+  String? get defaultRedirectUrl {
+    if (kIsWeb) {
+      try {
+        final origin = Uri.base.origin;
+        if (origin.isNotEmpty && !origin.contains('null')) {
+          return origin;
+        }
+      } catch (_) {}
+    }
+    return null;
+  }
+
   String get userDisplayName {
     final user = _supabase.auth.currentUser;
-    if (user == null) return 'Anonymous Agent';
+    if (user == null) return 'User';
     final meta = user.userMetadata;
     if (meta != null && meta['display_name'] != null && meta['display_name'].toString().trim().isNotEmpty) {
       return meta['display_name'].toString().trim();
@@ -25,7 +38,7 @@ class AuthService {
     if (user.email != null && user.email!.contains('@')) {
       return user.email!.split('@').first;
     }
-    return 'Agent';
+    return 'User';
   }
 
   String get userEmail {
@@ -55,7 +68,7 @@ class AuthService {
       if (e.message.toLowerCase().contains("invalid login credentials")) {
         throw Exception("Invalid credentials. The email does not exist or the password is incorrect.");
       } else if (e.message.toLowerCase().contains("email not confirmed")) {
-        throw Exception("Please confirm your email address before signing in.");
+        throw Exception("Email not confirmed. Please enter the verification code sent to your email.");
       }
       throw Exception(e.message);
     } catch (e) {
@@ -90,6 +103,7 @@ class AuthService {
           'display_name': cleanName,
           'name': cleanName,
         },
+        emailRedirectTo: defaultRedirectUrl,
       );
       return response;
     } on AuthException catch (e) {
@@ -102,7 +116,7 @@ class AuthService {
     }
   }
 
-  /// Send password recovery link to the user's email.
+  /// Send password recovery link / code to the user's email.
   Future<void> resetPasswordForEmail(String email) async {
     final cleanEmail = email.trim();
     if (cleanEmail.isEmpty || !cleanEmail.contains('@') || !cleanEmail.contains('.')) {
@@ -110,11 +124,86 @@ class AuthService {
     }
 
     try {
-      await _supabase.auth.resetPasswordForEmail(cleanEmail);
+      await _supabase.auth.resetPasswordForEmail(
+        cleanEmail,
+        redirectTo: defaultRedirectUrl,
+      );
     } on AuthException catch (e) {
       throw Exception(e.message);
     } catch (e) {
       throw Exception("Password reset failed: ${e.toString().replaceFirst(RegExp(r'^Exception:\s*'), '')}");
+    }
+  }
+
+  /// Verify 6-digit OTP code (for signup confirmation or password recovery)
+  Future<AuthResponse> verifyOTP({
+    required String email,
+    required String token,
+    required OtpType type,
+  }) async {
+    final cleanEmail = email.trim();
+    final cleanToken = token.trim();
+    if (cleanEmail.isEmpty) throw Exception("Please enter your email address.");
+    if (cleanToken.isEmpty) throw Exception("Please enter the 6-digit verification code.");
+
+    try {
+      final response = await _supabase.auth.verifyOTP(
+        email: cleanEmail,
+        token: cleanToken,
+        type: type,
+      );
+      return response;
+    } on AuthException catch (e) {
+      if (e.message.toLowerCase().contains("expired") || e.message.toLowerCase().contains("invalid")) {
+        throw Exception("Invalid or expired verification code. Please check your email or request a new code.");
+      }
+      throw Exception(e.message);
+    } catch (e) {
+      throw Exception("Verification failed: ${e.toString().replaceFirst(RegExp(r'^Exception:\s*'), '')}");
+    }
+  }
+
+  /// Reset password directly using 6-digit recovery OTP code
+  Future<void> resetPasswordWithOTP({
+    required String email,
+    required String token,
+    required String newPassword,
+  }) async {
+    if (newPassword.length < 6) {
+      throw Exception("New password must be at least 6 characters long.");
+    }
+    // 1. Verify recovery OTP
+    await verifyOTP(
+      email: email,
+      token: token,
+      type: OtpType.recovery,
+    );
+    // 2. Update to new password
+    try {
+      await _supabase.auth.updateUser(
+        UserAttributes(password: newPassword),
+      );
+    } on AuthException catch (e) {
+      throw Exception(e.message);
+    } catch (e) {
+      throw Exception("Failed to set new password: ${e.toString().replaceFirst(RegExp(r'^Exception:\s*'), '')}");
+    }
+  }
+
+  /// Resend signup verification code
+  Future<void> resendVerificationEmail(String email) async {
+    final cleanEmail = email.trim();
+    if (cleanEmail.isEmpty) throw Exception("Please enter your email address.");
+    try {
+      await _supabase.auth.resend(
+        type: OtpType.signup,
+        email: cleanEmail,
+        emailRedirectTo: defaultRedirectUrl,
+      );
+    } on AuthException catch (e) {
+      throw Exception(e.message);
+    } catch (e) {
+      throw Exception("Failed to resend code: ${e.toString().replaceFirst(RegExp(r'^Exception:\s*'), '')}");
     }
   }
 

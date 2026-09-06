@@ -22,6 +22,7 @@ enum ActiveDeckModal {
   studio,
   radar,
   ledger,
+  profile,
 }
 
 class WorkspaceScreen extends ConsumerStatefulWidget {
@@ -40,6 +41,21 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
   ActiveDeckModal _activeModal = ActiveDeckModal.none;
   late AnimationController _pulseController;
 
+  // User Profile dedicated page controllers & state
+  final TextEditingController _profileDisplayNameController = TextEditingController();
+  final TextEditingController _currentPasswordController = TextEditingController();
+  final TextEditingController _newPasswordController = TextEditingController();
+  final TextEditingController _confirmPasswordController = TextEditingController();
+  bool _showCurrentPassword = false;
+  bool _showNewPassword = false;
+  bool _showConfirmPassword = false;
+  bool _isUpdatingPassword = false;
+  bool _isUpdatingName = false;
+  bool _isSendingPasswordReset = false;
+  String? _profileStatusMessage;
+  bool _isProfileSuccessMessage = false;
+  bool _nameInitialized = false;
+
   @override
   void initState() {
     super.initState();
@@ -54,6 +70,10 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
     _targetController.dispose();
     _scrollController.dispose();
     _pulseController.dispose();
+    _profileDisplayNameController.dispose();
+    _currentPasswordController.dispose();
+    _newPasswordController.dispose();
+    _confirmPasswordController.dispose();
     super.dispose();
   }
 
@@ -72,6 +92,9 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
         case 3:
           _activeModal = ActiveDeckModal.ledger;
           break;
+        case 4:
+          _activeModal = ActiveDeckModal.profile;
+          break;
       }
     });
   }
@@ -86,14 +109,14 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
           side: const BorderSide(color: CyberTheme.borderAccent),
         ),
         title: Text(
-          'End Enclave Session?',
+          'Sign Out?',
           style: GoogleFonts.plusJakartaSans(
             color: CyberTheme.textPrimary,
             fontWeight: FontWeight.w800,
           ),
         ),
         content: Text(
-          'You will be signed out of this Kerberos node.',
+          'Are you sure you want to sign out of your account?',
           style: GoogleFonts.plusJakartaSans(color: CyberTheme.textSecondary),
         ),
         actions: [
@@ -171,475 +194,672 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
     );
   }
 
-  Future<void> _showUserProfileModal(UserProfile profile) async {
-    final currentPasswordController = TextEditingController();
-    final newPasswordController = TextEditingController();
-    final confirmPasswordController = TextEditingController();
+  // ==========================================
+  // DEDICATED USER PROFILE PAGE
+  // ==========================================
+  Widget _buildUserProfilePage(UserProfile profile) {
+    if (!_nameInitialized && profile.displayName.isNotEmpty) {
+      _profileDisplayNameController.text = profile.displayName;
+      _nameInitialized = true;
+    }
 
-    bool showCurrent = false;
-    bool showNew = false;
-    bool showConfirm = false;
-    bool isUpdatingPassword = false;
-    bool isSendingReset = false;
-    String? statusMessage;
-    bool isSuccessMessage = false;
-
-    await showDialog(
-      context: context,
-      builder: (dialogCtx) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            return Dialog(
-              backgroundColor: Colors.transparent,
-              insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-              child: Container(
-                constraints: const BoxConstraints(maxWidth: 520),
-                decoration: BoxDecoration(
-                  color: const Color(0xFB0E081A),
-                  borderRadius: BorderRadius.circular(24),
-                  border: Border.all(color: CyberTheme.borderAccent, width: 1.2),
-                  boxShadow: [
-                    const BoxShadow(
-                      color: Color(0x99000000),
-                      blurRadius: 40,
-                      offset: Offset(0, 16),
-                    ),
-                    BoxShadow(
-                      color: CyberTheme.accentColor.withValues(alpha: 0.25),
-                      blurRadius: 30,
-                      spreadRadius: -4,
-                    ),
-                  ],
-                ),
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(28),
-                  child: Column(
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1060),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Top Breadcrumb / Return to Home
+              InkWell(
+                onTap: () => _navigateToPage(0),
+                borderRadius: BorderRadius.circular(100),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  child: Row(
                     mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      // Header Row
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(8),
-                                decoration: BoxDecoration(
-                                  color: CyberTheme.accentColor.withValues(alpha: 0.15),
-                                  borderRadius: BorderRadius.circular(10),
-                                  border: Border.all(color: CyberTheme.borderAccent),
-                                ),
-                                child: const Icon(
-                                  Icons.manage_accounts_rounded,
-                                  color: Color(0xFFC084FC),
-                                  size: 20,
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Agent Enclave Identity',
-                                    style: GoogleFonts.plusJakartaSans(
-                                      fontSize: 17,
-                                      fontWeight: FontWeight.w800,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                  Text(
-                                    'Account credentials & security enclave',
-                                    style: GoogleFonts.plusJakartaSans(
-                                      fontSize: 11.5,
-                                      color: CyberTheme.textSecondary,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                          IconButton(
-                            onPressed: () => Navigator.pop(dialogCtx),
-                            icon: const Icon(Icons.close_rounded, color: CyberTheme.textMuted, size: 20),
-                            tooltip: 'Close',
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 22),
-
-                      // User Identity Card
-                      Container(
-                        padding: const EdgeInsets.all(18),
-                        decoration: BoxDecoration(
-                          color: const Color(0x18FFFFFF),
-                          borderRadius: BorderRadius.circular(18),
-                          border: Border.all(color: const Color(0x28FFFFFF)),
-                        ),
-                        child: Row(
-                          children: [
-                            // Big Glowing Initials Avatar
-                            Container(
-                              width: 52,
-                              height: 52,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                gradient: const LinearGradient(
-                                  colors: [Color(0xFFC084FC), Color(0xFF7C3AED)],
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
-                                ),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: CyberTheme.accentColor.withValues(alpha: 0.4),
-                                    blurRadius: 14,
-                                  ),
-                                ],
-                              ),
-                              padding: const EdgeInsets.all(2),
-                              child: Container(
-                                decoration: const BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: Color(0xFF140C28),
-                                ),
-                                child: Center(
-                                  child: Text(
-                                    profile.initials,
-                                    style: GoogleFonts.plusJakartaSans(
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.w900,
-                                      color: const Color(0xFFE9D5FF),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    children: [
-                                      Flexible(
-                                        child: Text(
-                                          profile.displayName,
-                                          style: GoogleFonts.plusJakartaSans(
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.w800,
-                                            color: Colors.white,
-                                          ),
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                                        decoration: BoxDecoration(
-                                          color: const Color(0x1E34D399),
-                                          borderRadius: BorderRadius.circular(100),
-                                          border: Border.all(color: const Color(0x4034D399)),
-                                        ),
-                                        child: Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            const Icon(Icons.verified_rounded, size: 10, color: Color(0xFF34D399)),
-                                            const SizedBox(width: 4),
-                                            Text(
-                                              'VERIFIED NODE',
-                                              style: GoogleFonts.jetBrainsMono(
-                                                fontSize: 9,
-                                                fontWeight: FontWeight.w800,
-                                                color: const Color(0xFF34D399),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    profile.email,
-                                    style: GoogleFonts.plusJakartaSans(
-                                      fontSize: 13,
-                                      color: CyberTheme.textSecondary,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Row(
-                                    children: [
-                                      Text(
-                                        'NODE ID: ${profile.id.isNotEmpty ? (profile.id.length > 14 ? '${profile.id.substring(0, 12)}...' : profile.id) : 'active-local'}',
-                                        style: GoogleFonts.jetBrainsMono(
-                                          fontSize: 10,
-                                          color: CyberTheme.textMuted,
-                                        ),
-                                      ),
-                                      const SizedBox(width: 6),
-                                      InkWell(
-                                        onTap: () {
-                                          Clipboard.setData(ClipboardData(text: profile.id));
-                                          ScaffoldMessenger.of(context).showSnackBar(
-                                            SnackBar(
-                                              content: const Text('Node ID copied to clipboard'),
-                                              backgroundColor: CyberTheme.surfaceElevated,
-                                              duration: const Duration(seconds: 2),
-                                            ),
-                                          );
-                                        },
-                                        child: const Icon(Icons.copy_rounded, size: 12, color: CyberTheme.shardColor),
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-
-                      // Change Password Section Divider & Title
-                      Row(
-                        children: [
-                          Text(
-                            'CHANGE PASSWORD',
-                            style: GoogleFonts.jetBrainsMono(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: 1.0,
-                              color: const Color(0xFFC084FC),
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          const Expanded(child: Divider(color: CyberTheme.border, thickness: 1)),
-                        ],
-                      ),
-                      const SizedBox(height: 6),
+                      const Icon(Icons.arrow_back_rounded, color: Color(0xFFC084FC), size: 18),
+                      const SizedBox(width: 8),
                       Text(
-                        'To change your password, verify your identity by entering your previous password first.',
+                        'Back to Home',
                         style: GoogleFonts.plusJakartaSans(
-                          fontSize: 12,
-                          color: CyberTheme.textSecondary,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: const Color(0xFFC084FC),
                         ),
-                      ),
-                      const SizedBox(height: 16),
-
-                      // Current Password Field
-                      _buildPasswordInput(
-                        controller: currentPasswordController,
-                        label: 'Current (Previous) Password',
-                        hint: 'Enter your existing password',
-                        isObscured: !showCurrent,
-                        onToggleVisibility: () => setDialogState(() => showCurrent = !showCurrent),
-                      ),
-                      const SizedBox(height: 12),
-
-                      // New Password Field
-                      _buildPasswordInput(
-                        controller: newPasswordController,
-                        label: 'New Password',
-                        hint: 'Min. 6 characters',
-                        isObscured: !showNew,
-                        onToggleVisibility: () => setDialogState(() => showNew = !showNew),
-                      ),
-                      const SizedBox(height: 12),
-
-                      // Confirm Password Field
-                      _buildPasswordInput(
-                        controller: confirmPasswordController,
-                        label: 'Confirm New Password',
-                        hint: 'Re-enter your new password',
-                        isObscured: !showConfirm,
-                        onToggleVisibility: () => setDialogState(() => showConfirm = !showConfirm),
-                      ),
-                      const SizedBox(height: 14),
-
-                      // Status message display
-                      if (statusMessage != null)
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                          margin: const EdgeInsets.only(bottom: 14),
-                          decoration: BoxDecoration(
-                            color: isSuccessMessage
-                                ? const Color(0x1E34D399)
-                                : const Color(0x1EFF5252),
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(
-                              color: isSuccessMessage
-                                  ? const Color(0x4034D399)
-                                  : const Color(0x50FF5252),
-                            ),
-                          ),
-                          child: Row(
-                            children: [
-                              Icon(
-                                isSuccessMessage ? Icons.check_circle_outline_rounded : Icons.error_outline_rounded,
-                                size: 16,
-                                color: isSuccessMessage ? const Color(0xFF34D399) : const Color(0xFFFF5252),
-                              ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: Text(
-                                  statusMessage!,
-                                  style: GoogleFonts.plusJakartaSans(
-                                    fontSize: 12,
-                                    color: isSuccessMessage ? const Color(0xFF34D399) : const Color(0xFFFF8080),
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-
-                      // Submit Password Update Button
-                      CyberButton(
-                        variant: CyberButtonVariant.whitePill,
-                        height: 42,
-                        isLoading: isUpdatingPassword,
-                        onTap: () async {
-                          final currentPass = currentPasswordController.text;
-                          final newPass = newPasswordController.text;
-                          final confirmPass = confirmPasswordController.text;
-
-                          if (currentPass.isEmpty) {
-                            setDialogState(() {
-                              statusMessage = 'Please enter your current password to verify identity.';
-                              isSuccessMessage = false;
-                            });
-                            return;
-                          }
-                          if (newPass.length < 6) {
-                            setDialogState(() {
-                              statusMessage = 'New password must be at least 6 characters long.';
-                              isSuccessMessage = false;
-                            });
-                            return;
-                          }
-                          if (newPass != confirmPass) {
-                            setDialogState(() {
-                              statusMessage = 'New password and confirm password do not match.';
-                              isSuccessMessage = false;
-                            });
-                            return;
-                          }
-
-                          setDialogState(() {
-                            isUpdatingPassword = true;
-                            statusMessage = null;
-                          });
-
-                          try {
-                            await ref.read(authServiceProvider).changePassword(
-                              currentPassword: currentPass,
-                              newPassword: newPass,
-                            );
-                            setDialogState(() {
-                              isUpdatingPassword = false;
-                              isSuccessMessage = true;
-                              statusMessage = 'Password updated successfully! Your enclave credentials have been re-secured.';
-                              currentPasswordController.clear();
-                              newPasswordController.clear();
-                              confirmPasswordController.clear();
-                            });
-                          } catch (e) {
-                            setDialogState(() {
-                              isUpdatingPassword = false;
-                              isSuccessMessage = false;
-                              statusMessage = e.toString().replaceFirst(RegExp(r'^Exception:\s*'), '');
-                            });
-                          }
-                        },
-                        child: Text(
-                          'Update Password',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-
-                      // Forgot Previous Password Principle Option
-                      Center(
-                        child: TextButton.icon(
-                          onPressed: isSendingReset
-                              ? null
-                              : () async {
-                                  setDialogState(() {
-                                    isSendingReset = true;
-                                    statusMessage = null;
-                                  });
-                                  try {
-                                    await ref.read(authServiceProvider).resetPasswordForEmail(profile.email);
-                                    setDialogState(() {
-                                      isSendingReset = false;
-                                      isSuccessMessage = true;
-                                      statusMessage = 'Password recovery email dispatched to ${profile.email}. Follow the instructions to reset your password without your previous credentials.';
-                                    });
-                                  } catch (e) {
-                                    setDialogState(() {
-                                      isSendingReset = false;
-                                      isSuccessMessage = false;
-                                      statusMessage = e.toString().replaceFirst(RegExp(r'^Exception:\s*'), '');
-                                    });
-                                  }
-                                },
-                          icon: const Icon(Icons.help_outline_rounded, size: 14, color: Color(0xFFC084FC)),
-                          label: Text(
-                            'Forgot previous password? Send recovery link',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: const Color(0xFFC084FC),
-                              decoration: TextDecoration.underline,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-
-                      const Divider(color: CyberTheme.border, thickness: 1),
-                      const SizedBox(height: 12),
-
-                      // Sign Out Option inside modal
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            'End node session?',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 12,
-                              color: CyberTheme.textMuted,
-                            ),
-                          ),
-                          CyberButton(
-                            variant: CyberButtonVariant.danger,
-                            height: 32,
-                            padding: const EdgeInsets.symmetric(horizontal: 14),
-                            onTap: () {
-                              Navigator.pop(dialogCtx);
-                              _confirmSignOut();
-                            },
-                            child: const Text('SIGN OUT'),
-                          ),
-                        ],
                       ),
                     ],
                   ),
                 ),
               ),
-            );
-          },
-        );
-      },
-    );
+              const SizedBox(height: 16),
 
-    currentPasswordController.dispose();
-    newPasswordController.dispose();
-    confirmPasswordController.dispose();
+              // Page Title & Subtitle
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'User Profile',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 32,
+                      fontWeight: FontWeight.w900,
+                      color: Colors.white,
+                      letterSpacing: -0.5,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Manage your personal information, security settings, and credentials.',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 14,
+                      color: CyberTheme.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 28),
+
+              // Responsive Two-Column Profile Layout
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final isWide = constraints.maxWidth >= 840;
+
+                  final leftCard = _buildProfileIdentityCard(profile);
+                  final rightCards = Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _buildPersonalInfoCard(profile),
+                      const SizedBox(height: 20),
+                      _buildPasswordSecurityCard(profile),
+                    ],
+                  );
+
+                  if (isWide) {
+                    return Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        SizedBox(width: 340, child: leftCard),
+                        const SizedBox(width: 24),
+                        Expanded(child: rightCards),
+                      ],
+                    );
+                  } else {
+                    return Column(
+                      children: [
+                        leftCard,
+                        const SizedBox(height: 20),
+                        rightCards,
+                      ],
+                    );
+                  }
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildProfileIdentityCard(UserProfile profile) {
+    return Container(
+      padding: const EdgeInsets.all(26),
+      decoration: BoxDecoration(
+        color: const Color(0xF0120B22),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: const Color(0x30FFFFFF), width: 1.2),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x66000000),
+            blurRadius: 32,
+            offset: Offset(0, 12),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          // Large Glowing Initials Avatar
+          Container(
+            width: 82,
+            height: 82,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: const LinearGradient(
+                colors: [Color(0xFFC084FC), Color(0xFF7C3AED)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: CyberTheme.accentColor.withValues(alpha: 0.45),
+                  blurRadius: 20,
+                  spreadRadius: 2,
+                ),
+              ],
+            ),
+            padding: const EdgeInsets.all(3),
+            child: Container(
+              decoration: const BoxDecoration(
+                shape: BoxShape.circle,
+                color: Color(0xFF140C28),
+              ),
+              child: Center(
+                child: Text(
+                  profile.initials,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 26,
+                    fontWeight: FontWeight.w900,
+                    color: const Color(0xFFE9D5FF),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 18),
+
+          // User Name & Email
+          Text(
+            profile.displayName,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 19,
+              fontWeight: FontWeight.w800,
+              color: Colors.white,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            profile.email,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 13,
+              color: CyberTheme.textSecondary,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 14),
+
+          // Verified Account Status Badge
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: const Color(0x1E34D399),
+              borderRadius: BorderRadius.circular(100),
+              border: Border.all(color: const Color(0x4034D399)),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.verified_rounded, size: 13, color: Color(0xFF34D399)),
+                const SizedBox(width: 6),
+                Text(
+                  'Verified Account',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: const Color(0xFF34D399),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+          const Divider(color: Color(0x22FFFFFF), thickness: 1),
+          const SizedBox(height: 16),
+
+          // Account ID Card
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: const Color(0x10FFFFFF),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0x20FFFFFF)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Account ID',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: const Color(0xFF94A3B8),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        profile.id.isNotEmpty
+                            ? (profile.id.length > 20 ? '${profile.id.substring(0, 18)}...' : profile.id)
+                            : 'active-session',
+                        style: GoogleFonts.jetBrainsMono(
+                          fontSize: 11.5,
+                          color: const Color(0xFFE2E8F0),
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.copy_rounded, size: 15, color: Color(0xFFC084FC)),
+                      tooltip: 'Copy Account ID',
+                      onPressed: () {
+                        Clipboard.setData(ClipboardData(text: profile.id));
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              'Account ID copied to clipboard',
+                              style: GoogleFonts.plusJakartaSans(fontSize: 13),
+                            ),
+                            backgroundColor: CyberTheme.surfaceElevated,
+                            duration: const Duration(seconds: 2),
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          // Sign Out Action Button
+          CyberButton(
+            variant: CyberButtonVariant.danger,
+            isExpanded: true,
+            height: 40,
+            icon: Icons.logout_rounded,
+            onTap: _confirmSignOut,
+            child: const Text('Sign Out'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPersonalInfoCard(UserProfile profile) {
+    return Container(
+      padding: const EdgeInsets.all(26),
+      decoration: BoxDecoration(
+        color: const Color(0xF0120B22),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: const Color(0x30FFFFFF), width: 1.2),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x66000000),
+            blurRadius: 32,
+            offset: Offset(0, 12),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0x25C084FC),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: CyberTheme.borderAccent),
+                ),
+                child: const Icon(Icons.person_outline_rounded, color: Color(0xFFC084FC), size: 18),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                'Personal Information',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.white,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+
+          // Display Name Field with Save button
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Display Name',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: const Color(0xFFE2E8F0),
+                      ),
+                    ),
+                    const SizedBox(height: 7),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: const Color(0x12FFFFFF),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: const Color(0x28FFFFFF)),
+                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
+                      child: TextField(
+                        controller: _profileDisplayNameController,
+                        style: GoogleFonts.plusJakartaSans(fontSize: 13.5, color: Colors.white),
+                        decoration: const InputDecoration(
+                          border: InputBorder.none,
+                          hintText: 'Enter your name',
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 14),
+              CyberButton(
+                variant: CyberButtonVariant.whitePill,
+                height: 42,
+                isLoading: _isUpdatingName,
+                onTap: () async {
+                  final newName = _profileDisplayNameController.text.trim();
+                  if (newName.isEmpty) return;
+                  setState(() => _isUpdatingName = true);
+                  try {
+                    await ref.read(authServiceProvider).updateProfile(displayName: newName);
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Profile name updated!', style: GoogleFonts.plusJakartaSans()),
+                          backgroundColor: CyberTheme.emerald,
+                        ),
+                      );
+                    }
+                  } catch (e) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(e.toString().replaceFirst(RegExp(r'^Exception:\s*'), '')),
+                          backgroundColor: CyberTheme.coral,
+                        ),
+                      );
+                    }
+                  } finally {
+                    if (mounted) setState(() => _isUpdatingName = false);
+                  }
+                },
+                child: const Text('Save Name'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          // Email Field (Read Only)
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Email Address',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: const Color(0xFFE2E8F0),
+                ),
+              ),
+              const SizedBox(height: 7),
+              Container(
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  color: const Color(0x0AFFFFFF),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0x18FFFFFF)),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                child: Row(
+                  children: [
+                    const Icon(Icons.email_outlined, color: Color(0xFF64748B), size: 18),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        profile.email,
+                        style: GoogleFonts.plusJakartaSans(fontSize: 13, color: const Color(0xFF94A3B8)),
+                      ),
+                    ),
+                    const Icon(Icons.lock_outline_rounded, color: Color(0xFF64748B), size: 16),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPasswordSecurityCard(UserProfile profile) {
+    return Container(
+      padding: const EdgeInsets.all(26),
+      decoration: BoxDecoration(
+        color: const Color(0xF0120B22),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: const Color(0x30FFFFFF), width: 1.2),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x66000000),
+            blurRadius: 32,
+            offset: Offset(0, 12),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0x25C084FC),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: CyberTheme.borderAccent),
+                ),
+                child: const Icon(Icons.lock_reset_rounded, color: Color(0xFFC084FC), size: 18),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                'Change Password',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.white,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'To change your password, verify your identity by entering your current password first.',
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 12.5,
+              color: CyberTheme.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 20),
+
+          // Current Password
+          _buildPasswordInput(
+            controller: _currentPasswordController,
+            label: 'Current Password',
+            hint: 'Enter your existing password',
+            isObscured: !_showCurrentPassword,
+            onToggleVisibility: () => setState(() => _showCurrentPassword = !_showCurrentPassword),
+          ),
+          const SizedBox(height: 14),
+
+          // New Password
+          _buildPasswordInput(
+            controller: _newPasswordController,
+            label: 'New Password',
+            hint: 'Minimum 6 characters',
+            isObscured: !_showNewPassword,
+            onToggleVisibility: () => setState(() => _showNewPassword = !_showNewPassword),
+          ),
+          const SizedBox(height: 14),
+
+          // Confirm New Password
+          _buildPasswordInput(
+            controller: _confirmPasswordController,
+            label: 'Confirm New Password',
+            hint: 'Re-enter your new password',
+            isObscured: !_showConfirmPassword,
+            onToggleVisibility: () => setState(() => _showConfirmPassword = !_showConfirmPassword),
+          ),
+          const SizedBox(height: 16),
+
+          // Status message display
+          if (_profileStatusMessage != null)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              margin: const EdgeInsets.only(bottom: 16),
+              decoration: BoxDecoration(
+                color: _isProfileSuccessMessage ? const Color(0x1E34D399) : const Color(0x1EFF5252),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: _isProfileSuccessMessage ? const Color(0x4034D399) : const Color(0x50FF5252),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    _isProfileSuccessMessage ? Icons.check_circle_outline_rounded : Icons.error_outline_rounded,
+                    size: 16,
+                    color: _isProfileSuccessMessage ? const Color(0xFF34D399) : const Color(0xFFFF5252),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      _profileStatusMessage!,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 12,
+                        color: _isProfileSuccessMessage ? const Color(0xFF34D399) : const Color(0xFFFF8080),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+          // Action row: Update Password Button & Forgot Password Link
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              CyberButton(
+                variant: CyberButtonVariant.whitePill,
+                height: 42,
+                isLoading: _isUpdatingPassword,
+                onTap: () async {
+                  final currentPass = _currentPasswordController.text;
+                  final newPass = _newPasswordController.text;
+                  final confirmPass = _confirmPasswordController.text;
+
+                  if (currentPass.isEmpty) {
+                    setState(() {
+                      _profileStatusMessage = 'Please enter your current password.';
+                      _isProfileSuccessMessage = false;
+                    });
+                    return;
+                  }
+                  if (newPass.length < 6) {
+                    setState(() {
+                      _profileStatusMessage = 'New password must be at least 6 characters long.';
+                      _isProfileSuccessMessage = false;
+                    });
+                    return;
+                  }
+                  if (newPass != confirmPass) {
+                    setState(() {
+                      _profileStatusMessage = 'New password and confirm password do not match.';
+                      _isProfileSuccessMessage = false;
+                    });
+                    return;
+                  }
+
+                  setState(() {
+                    _isUpdatingPassword = true;
+                    _profileStatusMessage = null;
+                  });
+
+                  try {
+                    await ref.read(authServiceProvider).changePassword(
+                          currentPassword: currentPass,
+                          newPassword: newPass,
+                        );
+                    if (mounted) {
+                      setState(() {
+                        _isUpdatingPassword = false;
+                        _isProfileSuccessMessage = true;
+                        _profileStatusMessage = 'Password updated successfully!';
+                        _currentPasswordController.clear();
+                        _newPasswordController.clear();
+                        _confirmPasswordController.clear();
+                      });
+                    }
+                  } catch (e) {
+                    if (mounted) {
+                      setState(() {
+                        _isUpdatingPassword = false;
+                        _isProfileSuccessMessage = false;
+                        _profileStatusMessage = e.toString().replaceFirst(RegExp(r'^Exception:\s*'), '');
+                      });
+                    }
+                  }
+                },
+                child: const Text('Update Password'),
+              ),
+              TextButton.icon(
+                onPressed: _isSendingPasswordReset
+                    ? null
+                    : () async {
+                        setState(() {
+                          _isSendingPasswordReset = true;
+                          _profileStatusMessage = null;
+                        });
+                        try {
+                          await ref.read(authServiceProvider).resetPasswordForEmail(profile.email);
+                          if (mounted) {
+                            setState(() {
+                              _isSendingPasswordReset = false;
+                              _isProfileSuccessMessage = true;
+                              _profileStatusMessage = 'Password recovery link sent to ${profile.email}.';
+                            });
+                          }
+                        } catch (e) {
+                          if (mounted) {
+                            setState(() {
+                              _isSendingPasswordReset = false;
+                              _isProfileSuccessMessage = false;
+                              _profileStatusMessage = e.toString().replaceFirst(RegExp(r'^Exception:\s*'), '');
+                            });
+                          }
+                        }
+                      },
+                icon: const Icon(Icons.help_outline_rounded, size: 14, color: Color(0xFFC084FC)),
+                label: Text(
+                  'Forgot password?',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: const Color(0xFFC084FC),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -718,7 +938,7 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
                 // Dedicated Screens (Instant non-sliding transition, Navbar indicator slides smoothly)
                 Expanded(
                   child: IndexedStack(
-                    index: _activeNavIndex,
+                    index: _currentActivePageIndex,
                     children: [
                       // Page 0: Home Page
                       _buildHomePage(),
@@ -757,6 +977,9 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
                             'Cryptographic tamper-evident provenance block history, verifying asset signature validity, perceptual hashes, and peer transmission logs.',
                         child: _buildLedgerAuditTrail(),
                       ),
+
+                      // Page 4: Dedicated User Profile Page
+                      _buildUserProfilePage(userProfile),
                     ],
                   ),
                 ),
@@ -778,6 +1001,23 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
         return 2; // Radar
       case ActiveDeckModal.ledger:
         return 3; // Ledger
+      case ActiveDeckModal.profile:
+        return -1; // None of the 4 tabs is active
+    }
+  }
+
+  int get _currentActivePageIndex {
+    switch (_activeModal) {
+      case ActiveDeckModal.none:
+        return 0; // Home
+      case ActiveDeckModal.studio:
+        return 1; // Studio
+      case ActiveDeckModal.radar:
+        return 2; // Radar
+      case ActiveDeckModal.ledger:
+        return 3; // Ledger
+      case ActiveDeckModal.profile:
+        return 4; // User Profile
     }
   }
 
@@ -785,15 +1025,16 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
   // ANIMATED SLIDING NAV SEGMENTED CONTROL
   // ==========================================
   Widget _buildNavSegmentedControl() {
-    const double tabWidth = 84.0;
-    const double tabHeight = 34.0;
+    const double tabWidth = 86.0;
+    const double tabHeight = 36.0;
+    final activeIndex = _activeNavIndex; // 0, 1, 2, 3, or -1
 
     return Container(
       padding: const EdgeInsets.all(3.0),
       decoration: BoxDecoration(
-        color: const Color(0x0EFFFFFF), // Sleek subtle frosted track
+        color: const Color(0x12FFFFFF), // Subtle frosted track
         borderRadius: BorderRadius.circular(100),
-        border: Border.all(color: const Color(0x20FFFFFF), width: 1.0),
+        border: Border.all(color: const Color(0x24FFFFFF), width: 1.0),
       ),
       child: SizedBox(
         width: tabWidth * 4,
@@ -802,44 +1043,54 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
           children: [
             // 1. Animated Sliding Indicator Pill & Bottom Glow Bar
             AnimatedPositioned(
-              duration: const Duration(milliseconds: 300),
+              duration: const Duration(milliseconds: 320),
               curve: Curves.easeOutCubic,
-              left: _activeNavIndex * tabWidth,
+              left: (activeIndex >= 0 ? activeIndex : 0) * tabWidth,
               top: 0,
               width: tabWidth,
               height: tabHeight,
-              child: Container(
-                decoration: BoxDecoration(
-                  color: const Color(0x28FFFFFF), // Clean frosted white pill
-                  borderRadius: BorderRadius.circular(100),
-                  border: Border.all(
-                    color: const Color(0x55FFFFFF),
-                    width: 1.0,
-                  ),
-                  boxShadow: const [
-                    BoxShadow(
-                      color: Color(0x20000000),
-                      blurRadius: 6,
-                      offset: Offset(0, 2),
+              child: AnimatedOpacity(
+                duration: const Duration(milliseconds: 200),
+                opacity: activeIndex >= 0 ? 1.0 : 0.0,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: const Color(0x32FFFFFF), // Visible frosted white pill
+                    borderRadius: BorderRadius.circular(100),
+                    border: Border.all(
+                      color: const Color(0x60FFFFFF),
+                      width: 1.0,
                     ),
-                  ],
-                ),
-                // Crisp bottom accent bar (refined theme amethyst micro-indicator)
-                child: Align(
-                  alignment: Alignment.bottomCenter,
-                  child: Container(
-                    margin: const EdgeInsets.only(bottom: 2.5),
-                    width: 20,
-                    height: 2.0,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFC084FC),
-                      borderRadius: BorderRadius.circular(2),
-                      boxShadow: const [
-                        BoxShadow(
-                          color: Color(0x80C084FC),
-                          blurRadius: 4,
-                        ),
-                      ],
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Color(0x35C084FC),
+                        blurRadius: 14,
+                        offset: Offset(0, 2),
+                      ),
+                      BoxShadow(
+                        color: Color(0x20000000),
+                        blurRadius: 6,
+                        offset: Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  // Crisp bottom accent bar (refined electric amethyst micro-indicator)
+                  child: Align(
+                    alignment: Alignment.bottomCenter,
+                    child: Container(
+                      margin: const EdgeInsets.only(bottom: 3.0),
+                      width: 24,
+                      height: 2.5,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFC084FC),
+                        borderRadius: BorderRadius.circular(2),
+                        boxShadow: const [
+                          BoxShadow(
+                            color: Color(0xB0C084FC),
+                            blurRadius: 6,
+                            spreadRadius: 1,
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -881,20 +1132,21 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
   Widget _buildNavTabItem(String title, int index, VoidCallback onTap) {
     final isActive = _activeNavIndex == index;
     return SizedBox(
-      width: 84.0,
-      height: 34.0,
+      width: 86.0,
+      height: 36.0,
       child: Material(
         color: Colors.transparent,
         child: InkWell(
           borderRadius: BorderRadius.circular(100),
           onTap: onTap,
+          hoverColor: const Color(0x15FFFFFF),
           child: Center(
             child: AnimatedDefaultTextStyle(
-              duration: const Duration(milliseconds: 180),
+              duration: const Duration(milliseconds: 200),
               style: GoogleFonts.plusJakartaSans(
                 color: isActive ? Colors.white : const Color(0x99FFFFFF),
                 fontSize: 13,
-                fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
+                fontWeight: isActive ? FontWeight.w800 : FontWeight.w500,
                 letterSpacing: 0.2,
               ),
               child: Text(title),
@@ -1001,83 +1253,203 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
                   ),
                 ),
 
-                // Right: User Profile Avatar Logo (no full name) & Sign out
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Interactive User Avatar (Opens Profile & Security Modal)
-                    InkWell(
-                      onTap: () => _showUserProfileModal(profile),
-                      borderRadius: BorderRadius.circular(100),
-                      child: MouseRegion(
-                        cursor: SystemMouseCursors.click,
-                        child: Tooltip(
-                          message: 'Agent Profile & Security Settings\n${profile.email}',
-                          textStyle: GoogleFonts.plusJakartaSans(fontSize: 11, color: Colors.white),
-                          decoration: BoxDecoration(
-                            color: CyberTheme.surfaceElevated,
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: CyberTheme.borderAccent),
-                          ),
-                          child: Container(
-                            width: 36,
-                            height: 36,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              gradient: const LinearGradient(
-                                colors: [Color(0xFFC084FC), Color(0xFF7C3AED)],
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                              ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: CyberTheme.accentColor.withValues(alpha: 0.45),
-                                  blurRadius: 12,
-                                  spreadRadius: 1,
-                                ),
-                              ],
-                            ),
-                            padding: const EdgeInsets.all(1.5),
-                            child: Container(
-                              decoration: const BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: Color(0xFF160F2B),
-                              ),
-                              child: Center(
-                                child: Text(
-                                  profile.initials,
-                                  style: GoogleFonts.plusJakartaSans(
-                                    color: const Color(0xFFE9D5FF),
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w900,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
+                // Right: Combined Unified User Profile Capsule & Sign Out Menu
+                _buildNavbarProfileCapsule(profile),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 
-                    // Solid White Pill Button (React Bits Navbar Right CTA)
-                    CyberButton(
-                      variant: CyberButtonVariant.whitePill,
-                      height: 34,
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      onTap: _confirmSignOut,
-                      child: Text(
-                        'Sign out',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontWeight: FontWeight.w800,
-                          fontSize: 12,
-                        ),
+  Widget _buildNavbarProfileCapsule(UserProfile profile) {
+    final isProfileActive = _activeModal == ActiveDeckModal.profile;
+
+    return Theme(
+      data: Theme.of(context).copyWith(
+        popupMenuTheme: PopupMenuThemeData(
+          color: const Color(0xF5140D26),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+            side: const BorderSide(color: Color(0x40FFFFFF), width: 1.0),
+          ),
+          elevation: 24,
+        ),
+      ),
+      child: PopupMenuButton<String>(
+        offset: const Offset(0, 48),
+        tooltip: 'Account & Settings',
+        onSelected: (value) {
+          if (value == 'profile') {
+            setState(() => _activeModal = ActiveDeckModal.profile);
+          } else if (value == 'signout') {
+            _confirmSignOut();
+          }
+        },
+        itemBuilder: (context) => [
+          // Header: User Summary
+          PopupMenuItem<String>(
+            enabled: false,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            child: Row(
+              children: [
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFFC084FC), Color(0xFF7C3AED)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                  ),
+                  child: Center(
+                    child: Text(
+                      profile.initials,
+                      style: GoogleFonts.plusJakartaSans(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 13,
                       ),
                     ),
-                  ],
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        profile.displayName,
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        profile.email,
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 11,
+                          color: CyberTheme.textSecondary,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
+          ),
+          const PopupMenuDivider(),
+          PopupMenuItem<String>(
+            value: 'profile',
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Row(
+              children: [
+                const Icon(Icons.person_outline_rounded, color: Color(0xFFC084FC), size: 18),
+                const SizedBox(width: 12),
+                Text(
+                  'User Profile',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const PopupMenuDivider(),
+          PopupMenuItem<String>(
+            value: 'signout',
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Row(
+              children: [
+                const Icon(Icons.logout_rounded, color: Color(0xFFFF6B6B), size: 18),
+                const SizedBox(width: 12),
+                Text(
+                  'Sign Out',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: const Color(0xFFFF6B6B),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          decoration: BoxDecoration(
+            color: isProfileActive ? const Color(0x30C084FC) : const Color(0x16FFFFFF),
+            borderRadius: BorderRadius.circular(100),
+            border: Border.all(
+              color: isProfileActive ? const Color(0xFFA855F7) : const Color(0x30FFFFFF),
+              width: 1.0,
+            ),
+            boxShadow: isProfileActive
+                ? [
+                    BoxShadow(
+                      color: CyberTheme.accentColor.withValues(alpha: 0.35),
+                      blurRadius: 14,
+                      spreadRadius: 1,
+                    ),
+                  ]
+                : null,
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Initials Avatar
+              Container(
+                width: 28,
+                height: 28,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFFC084FC), Color(0xFF7C3AED)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                ),
+                child: Center(
+                  child: Text(
+                    profile.initials,
+                    style: GoogleFonts.plusJakartaSans(
+                      color: Colors.white,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 110),
+                child: Text(
+                  profile.displayName.split(' ').first,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(width: 4),
+              const Icon(
+                Icons.keyboard_arrow_down_rounded,
+                color: Color(0xFF94A3B8),
+                size: 18,
+              ),
+            ],
           ),
         ),
       ),
@@ -1224,7 +1596,7 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
             ),
           ),
         ),
-        const SizedBox(height: 18),
+        const SizedBox(height: 28), // Generous breathing room between badge and headline
 
         // Bold Crisp Modern Sans Headline with Theme-Highlighted Words
         Text.rich(
@@ -1262,9 +1634,9 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
           style: GoogleFonts.plusJakartaSans(
             fontSize: 44,
             fontWeight: FontWeight.w900,
-            letterSpacing: -1.2,
+            letterSpacing: -1.0,
             color: Colors.white,
-            height: 1.14,
+            height: 1.24, // Comfortable line height for airy reading
             shadows: [
               Shadow(
                 color: CyberTheme.accentColor.withValues(alpha: 0.4),
@@ -1273,7 +1645,7 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
             ],
           ),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 26), // Generous spacing before subtitle
 
         // Subtitle (Kept as plain uniform text)
         ConstrainedBox(
@@ -1284,14 +1656,14 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
             style: GoogleFonts.plusJakartaSans(
               fontSize: 14.5,
               fontWeight: FontWeight.w400,
-              height: 1.55,
+              height: 1.65, // More legible and spacious
               color: CyberTheme.textSecondary,
             ),
           ),
         ),
-        const SizedBox(height: 20),
+        const SizedBox(height: 38), // Generous spacing before CTA buttons
 
-        // Hero Action Buttons (Enlarged & Commanding)
+        // Hero Action Buttons with Hover Pop Lift & Glow
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -1300,6 +1672,7 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
               height: 52,
               padding: const EdgeInsets.symmetric(horizontal: 32),
               icon: Icons.upload_file,
+              enableHoverPop: true,
               onTap: () => _navigateToPage(1),
               child: Text(
                 'Get started',
@@ -1316,6 +1689,7 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
               height: 52,
               padding: const EdgeInsets.symmetric(horizontal: 28),
               icon: Icons.radar,
+              enableHoverPop: true,
               onTap: () => _navigateToPage(2),
               child: Text(
                 'Launch Radar',
@@ -1338,7 +1712,7 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
   Widget _buildHomePage() {
     return SingleChildScrollView(
       controller: _scrollController,
-      padding: const EdgeInsets.only(left: 24, right: 24, top: 76, bottom: 40),
+      padding: const EdgeInsets.only(left: 24, right: 24, top: 88, bottom: 64),
       child: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 1100),
@@ -1346,280 +1720,12 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               _buildHeroSection(),
-              const SizedBox(height: 24),
-              Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 820),
-                  child: _buildParallelDownloadBoxes(),
-                ),
-              ),
-              const SizedBox(height: 80),
+              const SizedBox(height: 96), // Airy, elegant vertical breathing room
               _buildApplicationExplainerSection(),
               const SizedBox(height: 56),
             ],
           ),
         ),
-      ),
-    );
-  }
-
-  // ==========================================
-  // PARALLEL CROSS-PLATFORM DOWNLOAD BOXES
-  // ==========================================
-  Widget _buildParallelDownloadBoxes() {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final isDesktop = constraints.maxWidth >= 640;
-
-        final windowsCard = _buildDownloadCard(
-          title: 'Windows Client',
-          subtitle: 'TPM 2.0 C2PA seal & DTLS 1.3 node',
-          badge: 'WIN 10/11 • x64',
-          badgeColor: const Color(0xFF38BDF8),
-          icon: Icons.desktop_windows_rounded,
-          iconColor: const Color(0xFF38BDF8),
-          buttonText: 'Download',
-          onDownload: () {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                behavior: SnackBarBehavior.floating,
-                backgroundColor: CyberTheme.surfaceElevated,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                  side: const BorderSide(color: CyberTheme.borderAccent),
-                ),
-                content: Row(
-                  children: [
-                    const Icon(Icons.downloading_rounded, color: CyberTheme.accentColor, size: 22),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Windows Enclave Setup Wired',
-                            style: GoogleFonts.plusJakartaSans(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w700,
-                              fontSize: 13,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            'The installer package endpoint is wired and ready for binary deployment.',
-                            style: GoogleFonts.plusJakartaSans(
-                              color: CyberTheme.textSecondary,
-                              fontSize: 11,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                duration: const Duration(seconds: 4),
-              ),
-            );
-          },
-        );
-
-        final mobileCard = _buildDownloadCard(
-          title: 'Mobile Companion',
-          subtitle: 'Camera manifest seal & radar mesh',
-          badge: 'ANDROID & iOS',
-          badgeColor: const Color(0xFF34D399),
-          icon: Icons.smartphone_rounded,
-          iconColor: const Color(0xFF34D399),
-          buttonText: 'Download',
-          onDownload: () {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                behavior: SnackBarBehavior.floating,
-                backgroundColor: CyberTheme.surfaceElevated,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                  side: const BorderSide(color: CyberTheme.borderAccent),
-                ),
-                content: Row(
-                  children: [
-                    const Icon(Icons.phonelink_setup_rounded, color: CyberTheme.shardColor, size: 22),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Mobile Phone Companion Wired',
-                            style: GoogleFonts.plusJakartaSans(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w700,
-                              fontSize: 13,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            'Mobile distribution targets (APK & TestFlight bundle) wired for release.',
-                            style: GoogleFonts.plusJakartaSans(
-                              color: CyberTheme.textSecondary,
-                              fontSize: 11,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                duration: const Duration(seconds: 4),
-              ),
-            );
-          },
-        );
-
-        if (isDesktop) {
-          return Row(
-            children: [
-              Expanded(child: windowsCard),
-              const SizedBox(width: 16),
-              Expanded(child: mobileCard),
-            ],
-          );
-        } else {
-          return Column(
-            children: [
-              windowsCard,
-              const SizedBox(height: 12),
-              mobileCard,
-            ],
-          );
-        }
-      },
-    );
-  }
-
-  Widget _buildDownloadCard({
-    required String title,
-    required String subtitle,
-    required String badge,
-    required Color badgeColor,
-    required IconData icon,
-    required Color iconColor,
-    required String buttonText,
-    required VoidCallback onDownload,
-  }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-      decoration: BoxDecoration(
-        color: const Color(0x10FFFFFF),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0x28FFFFFF), width: 1.0),
-        boxShadow: [
-          const BoxShadow(
-            color: Color(0x35000000),
-            blurRadius: 16,
-            offset: Offset(0, 6),
-          ),
-          BoxShadow(
-            color: iconColor.withValues(alpha: 0.10),
-            blurRadius: 20,
-            spreadRadius: -2,
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          // Sleek Platform Icon Container
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(12),
-              gradient: LinearGradient(
-                colors: [
-                  iconColor.withValues(alpha: 0.20),
-                  iconColor.withValues(alpha: 0.05),
-                ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              border: Border.all(color: iconColor.withValues(alpha: 0.38), width: 1.0),
-            ),
-            child: Icon(icon, color: iconColor, size: 20),
-          ),
-          const SizedBox(width: 14),
-
-          // Platform Info (Title + Monospace Tag + Subtitle)
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
-                  children: [
-                    Flexible(
-                      child: Text(
-                        title,
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w800,
-                          color: Colors.white,
-                          letterSpacing: -0.2,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: badgeColor.withValues(alpha: 0.14),
-                        borderRadius: BorderRadius.circular(100),
-                        border: Border.all(color: badgeColor.withValues(alpha: 0.35), width: 0.8),
-                      ),
-                      child: Text(
-                        badge,
-                        style: GoogleFonts.jetBrainsMono(
-                          fontSize: 9.5,
-                          fontWeight: FontWeight.w700,
-                          color: badgeColor,
-                          letterSpacing: 0.4,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  subtitle,
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 11.5,
-                    fontWeight: FontWeight.w400,
-                    color: CyberTheme.textSecondary,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 14),
-
-          // Download CTA Button (Identical style and color for both)
-          CyberButton(
-            variant: CyberButtonVariant.whitePill,
-            height: 36,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            icon: Icons.download_rounded,
-            onTap: onDownload,
-            child: Text(
-              buttonText,
-              style: GoogleFonts.plusJakartaSans(
-                fontWeight: FontWeight.w800,
-                fontSize: 12,
-              ),
-            ),
-          ),
-        ],
       ),
     );
   }
