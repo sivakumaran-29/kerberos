@@ -16,11 +16,11 @@ import 'widgets/navigation_guard_dialog.dart';
 import 'widgets/p2p_chat_screen.dart';
 
 /// The Next-Generation Enclave Radar Page:
-/// - Mentimeter-style floating/orbiting peer mesh representation
-/// - Live node counter banner
-/// - Instant P2P DTLS 1.3 handshake
-/// - Full-featured encrypted P2P messaging interface with inline asset sealing
-/// - Navigation protection against mid-transfer disconnects
+/// - Only users actively in the Radar Portal are visible in the mesh
+/// - Displays authentic user names (never generic "Node...")
+/// - Initiator waits with high-end authorization loading screen until recipient confirms
+/// - Recipient receives an incoming connection request card
+/// - Both users log into the P2P chat screen only after confirmation
 class RadarPage extends ConsumerStatefulWidget {
   final Function(int targetTab)? onNavigateToTab;
   final Function(String fileName, Uint8List bytes)? onAuditInVerification;
@@ -35,7 +35,56 @@ class RadarPage extends ConsumerStatefulWidget {
   ConsumerState<RadarPage> createState() => _RadarPageState();
 }
 
-class _RadarPageState extends ConsumerState<RadarPage> {
+class _RadarPageState extends ConsumerState<RadarPage> with SingleTickerProviderStateMixin {
+  late AnimationController _pulseController;
+
+  @override
+  void initState() {
+    super.initState();
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2200),
+    )..repeat();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      // Mark local user as present in the radar portal
+      ref.read(signalingServiceProvider).setInRadar(true);
+
+      // Handle handshake decline notification for User 1
+      ref.read(p2pSessionServiceProvider).onHandshakeDeclined = (peerName, reason) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.cancel_outlined, color: Colors.white, size: 18),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      '$peerName declined the connection invitation ($reason).',
+                      style: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ],
+              ),
+              backgroundColor: const Color(0xFFF43F5E),
+              behavior: SnackBarBehavior.floating,
+              duration: const Duration(seconds: 4),
+            ),
+          );
+        }
+      };
+    });
+  }
+
+  @override
+  void dispose() {
+    // When leaving the radar page, announce exit so user disappears from others' radar
+    ref.read(signalingServiceProvider).setInRadar(false);
+    _pulseController.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     final sessionService = ref.watch(p2pSessionServiceProvider);
@@ -44,8 +93,10 @@ class _RadarPageState extends ConsumerState<RadarPage> {
     final showSimulated = ref.watch(simulatedPeersEnabledProvider);
     final incomingRequest = ref.watch(incomingTransferNotifierProvider);
 
-    final isSessionActive = sessionService.sessionState == P2PSessionState.connected ||
-        sessionService.sessionState == P2PSessionState.awaitingHandshake;
+    // Only switch to chat screen when fully connected
+    final isSessionActive = sessionService.sessionState == P2PSessionState.connected;
+    final isAwaitingHandshake = sessionService.sessionState == P2PSessionState.awaitingHandshake &&
+        sessionService.activePeer != null;
 
     String currentPlatform = 'Desktop Node';
     try {
@@ -66,7 +117,7 @@ class _RadarPageState extends ConsumerState<RadarPage> {
 
     return Stack(
       children: [
-        // Main Content: Mentimeter Mesh vs P2P Chat Screen
+        // 1. Main Content: Mentimeter Mesh vs P2P Chat Screen (Chat ONLY when connected)
         AnimatedSwitcher(
           duration: const Duration(milliseconds: 350),
           switchInCurve: Curves.easeOutCubic,
@@ -108,23 +159,17 @@ class _RadarPageState extends ConsumerState<RadarPage> {
                     );
                   },
                   onPeerSelected: (peer) async {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(
-                          'INITIATING DTLS 1.3 HANDSHAKE WITH ${peer.displayName.toUpperCase()}...',
-                          style: GoogleFonts.jetBrainsMono(fontSize: 12, fontWeight: FontWeight.bold),
-                        ),
-                        backgroundColor: CyberTheme.accentColor,
-                        duration: const Duration(milliseconds: 1500),
-                      ),
-                    );
                     await sessionService.connectToPeer(peer);
                   },
                 ),
         ),
 
-        // Incoming Transfer / Handshake Modal Overlay for the Radar Screen
-        if (incomingRequest != null && !isSessionActive)
+        // 2. User 1: High-End Waiting Authorization Screen while awaiting remote peer confirmation
+        if (isAwaitingHandshake)
+          _buildAwaitingHandshakeOverlay(sessionService.activePeer!, sessionService),
+
+        // 3. User 2: Incoming Transfer / Handshake Modal Overlay for the Radar Screen
+        if (incomingRequest != null && !isSessionActive && !isAwaitingHandshake)
           Positioned(
             top: 20,
             left: 20,
@@ -135,6 +180,211 @@ class _RadarPageState extends ConsumerState<RadarPage> {
     );
   }
 
+  // ==========================================
+  // USER 1: WAITING AUTHORIZATION MODAL
+  // ==========================================
+  Widget _buildAwaitingHandshakeOverlay(
+    RadarPeer peer,
+    P2PSessionService sessionService,
+  ) {
+    return Positioned.fill(
+      child: Container(
+        color: Colors.black.withValues(alpha: 0.72),
+        padding: const EdgeInsets.all(24),
+        child: Center(
+          child: Container(
+            width: 480,
+            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 34),
+            decoration: BoxDecoration(
+              color: const Color(0xFB140D24),
+              borderRadius: BorderRadius.circular(28),
+              border: Border.all(color: const Color(0x60A855F7), width: 1.5),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFFC084FC).withValues(alpha: 0.35),
+                  blurRadius: 40,
+                  spreadRadius: 2,
+                ),
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.9),
+                  blurRadius: 30,
+                  offset: const Offset(0, 15),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Animated Pulsing Ripple Radar with Target Peer Avatar
+                SizedBox(
+                  width: 100,
+                  height: 100,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      // Outer animated expanding pulse wave
+                      AnimatedBuilder(
+                        animation: _pulseController,
+                        builder: (context, child) {
+                          return Container(
+                            width: 60 + (_pulseController.value * 40),
+                            height: 60 + (_pulseController.value * 40),
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: const Color(0xFFC084FC).withValues(
+                                  alpha: (1.0 - _pulseController.value).clamp(0.0, 1.0) * 0.6,
+                                ),
+                                width: 1.5,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                      // Inner glowing avatar
+                      Container(
+                        width: 62,
+                        height: 62,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: const RadialGradient(
+                            colors: [Color(0xFFC084FC), Color(0xFF6B21A8)],
+                          ),
+                          border: Border.all(color: Colors.white, width: 2),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFFC084FC).withValues(alpha: 0.5),
+                              blurRadius: 20,
+                            ),
+                          ],
+                        ),
+                        child: Center(
+                          child: Text(
+                            peer.displayName.isNotEmpty
+                                ? peer.displayName.substring(0, 1).toUpperCase()
+                                : 'P',
+                            style: GoogleFonts.plusJakartaSans(
+                              color: Colors.white,
+                              fontSize: 24,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+
+                // Title
+                Text(
+                  'WAITING FOR AUTHORIZATION',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 1.2,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 6),
+
+                // Target Node Badge
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: const Color(0x30C084FC),
+                    borderRadius: BorderRadius.circular(100),
+                    border: Border.all(color: const Color(0x60C084FC)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 6,
+                        height: 6,
+                        decoration: const BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Color(0xFF34D399),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        peer.displayName,
+                        style: GoogleFonts.jetBrainsMono(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: const Color(0xFFF3E8FF),
+                        ),
+                      ),
+                      if (peer.platform.isNotEmpty) ...[
+                        const SizedBox(width: 6),
+                        Text(
+                          '• ${peer.platform}',
+                          style: GoogleFonts.jetBrainsMono(
+                            fontSize: 10,
+                            color: const Color(0xFFD8B4FE),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // Subtitle / Explainer
+                Text(
+                  'A secure DTLS 1.3 cryptographic handshake invitation has been dispatched. Please wait for ${peer.displayName} to accept in their Radar portal.\nBoth of you will enter the encrypted session together once confirmed.',
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 12.5,
+                    color: const Color(0xFFCBD5E1),
+                    height: 1.5,
+                  ),
+                ),
+                const SizedBox(height: 24),
+
+                // Loading bar
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: const SizedBox(
+                    width: 200,
+                    height: 3,
+                    child: LinearProgressIndicator(
+                      backgroundColor: Color(0x20FFFFFF),
+                      valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFC084FC)),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 26),
+
+                // Cancel button
+                CyberButton(
+                  variant: CyberButtonVariant.glassPill,
+                  height: 40,
+                  padding: const EdgeInsets.symmetric(horizontal: 26),
+                  onTap: () async {
+                    await sessionService.cancelHandshake();
+                  },
+                  child: Text(
+                    'Cancel Invitation',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: const Color(0xFFF87171),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ==========================================
+  // USER 2: INCOMING INVITATION PROMPT
+  // ==========================================
   Widget _buildIncomingInvitationCard(
     IncomingTransferRequest request,
     P2PSessionService sessionService,

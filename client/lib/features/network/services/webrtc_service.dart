@@ -28,6 +28,8 @@ class WebRTCService {
   Function(String status)? onStatusUpdate;
   Function(String text)? onTextMessageReceived;
   Function(RTCDataChannelState state)? onDataChannelStateChanged;
+  Function(String error)? onRemoteErrorOccurred;
+  Function(String senderId)? onCancelReceived;
 
   bool get isConnected => _dataChannel?.state == RTCDataChannelState.RTCDataChannelOpen;
   RTCDataChannelState? get dataChannelState => _dataChannel?.state;
@@ -83,6 +85,11 @@ class WebRTCService {
       print(">> [WebRTC] Remote peer reported error: $error");
       _lastTechnicalError = "Remote Peer Fault: $error";
       onStatusUpdate?.call("Remote peer error: $error");
+      onRemoteErrorOccurred?.call(error);
+    };
+    _signaling.onCancelReceived = (senderId) {
+      print(">> [WebRTC] Remote peer cancelled handshake: $senderId");
+      onCancelReceived?.call(senderId);
     };
   }
 

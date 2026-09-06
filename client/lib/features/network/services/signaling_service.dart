@@ -14,6 +14,7 @@ class SignalingService {
   Function(Map<String, dynamic> answer)? onAnswerReceived;
   Function(Map<String, dynamic> iceCandidate)? onIceCandidateReceived;
   Function(String error)? onRemoteErrorReceived;
+  Function(String senderId)? onCancelReceived;
   
   // Callback for Peer Discovery
   Function(List<Map<String, dynamic>> peers)? onPeersUpdated;
@@ -24,6 +25,7 @@ class SignalingService {
   final String _myUuid;
   String _displayName;
   String _userEmail;
+  bool _isInRadar = false;
   bool _isSubscribed = false;
   Completer<void> _subCompleter = Completer<void>();
 
@@ -35,18 +37,37 @@ class SignalingService {
   })  : _displayName = displayName,
         _userEmail = userEmail;
 
+  bool get isInRadar => _isInRadar;
+
+  /// Updates local presence status when user enters or leaves the radar portal
+  void setInRadar(bool inRadar) {
+    if (_isInRadar == inRadar) return;
+    _isInRadar = inRadar;
+    print(">> [Signaling] User in_radar state changed: $_isInRadar");
+    _trackCurrentPresence();
+  }
+
   void updateIdentity(String displayName, String email) {
     _displayName = displayName;
     _userEmail = email;
-    if (_isSubscribed && _channel != null) {
-      final platformName = kIsWeb ? 'Kerberos Web' : 'Kerberos Windows';
-      _channel!.track({
+    _trackCurrentPresence();
+  }
+
+  Future<void> _trackCurrentPresence() async {
+    if (!_isSubscribed || _channel == null) return;
+    final platformName = kIsWeb ? 'Web Enclave' : 'Windows Enclave';
+    try {
+      await _channel!.track({
         'uuid': _myUuid,
         'platform': platformName,
         'display_name': _displayName,
         'email': _userEmail,
+        'in_radar': _isInRadar,
         'online_at': DateTime.now().toIso8601String(),
       });
+      print(">> [Signaling] Presence tracked successfully (in_radar: $_isInRadar)");
+    } catch (e) {
+      print(">> [Signaling] Error tracking presence: $e");
     }
   }
 
@@ -58,18 +79,40 @@ class SignalingService {
       for (final client in state) {
         for (final presence in client.presences) {
           final payload = presence.payload;
-          if (payload['uuid'] != null && payload['uuid'].toString().toLowerCase() != _myUuid.toLowerCase()) {
+          final uuid = payload['uuid']?.toString();
+          final inRadar = payload['in_radar'] == true;
+
+          // Only display peers currently active in the Radar portal
+          if (uuid != null && uuid.toLowerCase() != _myUuid.toLowerCase() && inRadar) {
+            String name = payload['display_name']?.toString() ??
+                payload['displayName']?.toString() ??
+                payload['name']?.toString() ??
+                '';
+            final email = payload['email']?.toString() ?? payload['userEmail']?.toString() ?? '';
+
+            if (name.trim().isEmpty || name.toLowerCase() == 'agent') {
+              if (email.contains('@')) {
+                final userPart = email.split('@').first;
+                name = userPart.isNotEmpty ? userPart[0].toUpperCase() + userPart.substring(1) : userPart;
+              } else {
+                name = 'Agent ${uuid.length >= 4 ? uuid.substring(0, 4) : uuid}';
+              }
+            }
+
             discovered.add({
-              'uuid': payload['uuid'],
-              'platform': payload['platform'] ?? 'Kerberos Agent',
-              'display_name': payload['display_name'] ?? payload['name'] ?? 'Agent',
-              'email': payload['email'] ?? '',
+              'uuid': uuid,
+              'platform': payload['platform'] ?? 'Enclave Node',
+              'display_name': name,
+              'displayName': name,
+              'email': email,
+              'userEmail': email,
+              'in_radar': true,
               'online_at': payload['online_at'],
             });
           }
         }
       }
-      if (discovered.isNotEmpty) {
+      if (discovered.isNotEmpty || currentPeers.isNotEmpty) {
         currentPeers = discovered;
       }
     } catch (_) {}
@@ -77,7 +120,7 @@ class SignalingService {
   }
 
   void connect() {
-    print(">> [Signaling] Booting Supabase enclave for UUID: $_myUuid (Identity: $_displayName <$_userEmail>)");
+    print(">> [Signaling] Booting Supabase enclave for UUID: $_myUuid (Identity: $_displayName <$_userEmail>, in_radar: $_isInRadar)");
     _channel = _supabase.channel('kerberos_enclave');
 
     // 1. Listen for Peer Discovery (Presence)
@@ -88,19 +131,41 @@ class SignalingService {
       for (final client in state) {
         for (final presence in client.presences) {
           final payload = presence.payload;
-          if (payload['uuid'] != null && payload['uuid'].toString().toLowerCase() != _myUuid.toLowerCase()) {
+          final uuid = payload['uuid']?.toString();
+          final inRadar = payload['in_radar'] == true;
+
+          // ONLY include peers who are currently in the Radar portal!
+          if (uuid != null && uuid.toLowerCase() != _myUuid.toLowerCase() && inRadar) {
+            String name = payload['display_name']?.toString() ??
+                payload['displayName']?.toString() ??
+                payload['name']?.toString() ??
+                '';
+            final email = payload['email']?.toString() ?? payload['userEmail']?.toString() ?? '';
+
+            if (name.trim().isEmpty || name.toLowerCase() == 'agent') {
+              if (email.contains('@')) {
+                final userPart = email.split('@').first;
+                name = userPart.isNotEmpty ? userPart[0].toUpperCase() + userPart.substring(1) : userPart;
+              } else {
+                name = 'Agent ${uuid.length >= 4 ? uuid.substring(0, 4) : uuid}';
+              }
+            }
+
             discoveredPeers.add({
-              'uuid': payload['uuid'],
-              'platform': payload['platform'] ?? 'Kerberos Agent',
-              'display_name': payload['display_name'] ?? payload['name'] ?? 'Agent',
-              'email': payload['email'] ?? '',
+              'uuid': uuid,
+              'platform': payload['platform'] ?? 'Enclave Node',
+              'display_name': name,
+              'displayName': name,
+              'email': email,
+              'userEmail': email,
+              'in_radar': true,
               'online_at': payload['online_at'],
             });
           }
         }
       }
       currentPeers = discoveredPeers;
-      print(">> [Signaling] Discovered peers updated (${currentPeers.length} active): $currentPeers");
+      print(">> [Signaling] Discovered peers in radar portal updated (${currentPeers.length} active): $currentPeers");
       onPeersUpdated?.call(currentPeers);
     });
 
@@ -173,6 +238,10 @@ class SignalingService {
           case 'error':
             onRemoteErrorReceived?.call(signalPayload['error']?.toString() ?? 'Remote fault');
             break;
+          case 'cancel':
+            print(">> [Signaling] Connection request cancelled by $senderName ($senderId)");
+            onCancelReceived?.call(senderId);
+            break;
           default:
             print(">> [Signaling] Unrecognized signal type: '$type'");
             break;
@@ -188,14 +257,7 @@ class SignalingService {
         if (!_subCompleter.isCompleted) {
           _subCompleter.complete();
         }
-        final platformName = kIsWeb ? 'Kerberos Web' : 'Kerberos Windows';
-        await _channel!.track({
-          'uuid': _myUuid,
-          'platform': platformName,
-          'display_name': _displayName,
-          'email': _userEmail,
-          'online_at': DateTime.now().toIso8601String(),
-        });
+        await _trackCurrentPresence();
       } else if (status == RealtimeSubscribeStatus.closed || status == RealtimeSubscribeStatus.channelError) {
         _isSubscribed = false;
         if (_subCompleter.isCompleted) {

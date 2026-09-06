@@ -64,6 +64,8 @@ class P2PSessionService extends ChangeNotifier {
   String? get activeTransferringFileName => _activeTransferringFileName;
   bool get hasActiveTransfer => _isTransferring || _isSealing;
 
+  Function(String peerName, String reason)? onHandshakeDeclined;
+
   void _bindWebRTCListeners() {
     _webrtc.onTextMessageReceived = _handleIncomingTextMessage;
     _webrtc.onFileChunkReceived = _handleIncomingBinaryChunk;
@@ -86,6 +88,15 @@ class P2PSessionService extends ChangeNotifier {
         notifyListeners();
       }
     };
+    _webrtc.onRemoteErrorOccurred = (error) {
+      if (_sessionState == P2PSessionState.awaitingHandshake) {
+        final peerName = _activePeer?.displayName ?? 'Peer';
+        _sessionState = P2PSessionState.discovery;
+        _activePeer = null;
+        notifyListeners();
+        onHandshakeDeclined?.call(peerName, error);
+      }
+    };
   }
 
   /// Initiates a P2P connection to a target peer
@@ -96,8 +107,9 @@ class P2PSessionService extends ChangeNotifier {
     notifyListeners();
 
     if (peer.isSimulated) {
-      // Simulate direct instantaneous handshake for testing
-      await Future.delayed(const Duration(milliseconds: 600));
+      // Simulate waiting 1.8s so user sees the waiting authorization UI
+      await Future.delayed(const Duration(milliseconds: 1800));
+      if (_sessionState != P2PSessionState.awaitingHandshake) return; // Was canceled
       _sessionState = P2PSessionState.connected;
       _appendSystemNotice('Cryptographic P2P DTLS 1.3 tunnel verified with ${peer.displayName}.');
       notifyListeners();
@@ -118,6 +130,24 @@ class P2PSessionService extends ChangeNotifier {
       _activePeer = null;
       notifyListeners();
     }
+  }
+
+  /// User 1 cancels the pending connection request while waiting
+  Future<void> cancelHandshake() async {
+    if (_activePeer != null && !_activePeer!.isSimulated) {
+      try {
+        await _signaling.sendSignal(
+          targetId: _activePeer!.uuid,
+          type: 'cancel',
+          payload: {'reason': 'Invitation was canceled by user.'},
+        );
+      } catch (_) {}
+      _webrtc.closeConnection();
+    }
+    _simulatedResponseTimer?.cancel();
+    _activePeer = null;
+    _sessionState = P2PSessionState.discovery;
+    notifyListeners();
   }
 
   /// Called when remote peer offer is accepted locally

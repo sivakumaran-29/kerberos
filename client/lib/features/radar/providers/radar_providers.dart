@@ -18,10 +18,10 @@ final p2pSessionServiceProvider = ChangeNotifierProvider<P2PSessionService>((ref
   );
 });
 
-/// State toggle for whether demo/simulated nodes are active in the mesh
-final simulatedPeersEnabledProvider = StateProvider<bool>((ref) => true);
+/// State toggle for whether demo/simulated nodes are active in the mesh (defaults to false)
+final simulatedPeersEnabledProvider = StateProvider<bool>((ref) => false);
 
-/// Combined list of active mesh peers (real signaling peers + simulated demo nodes)
+/// Combined list of active mesh peers (real signaling peers + optional simulated demo nodes)
 final radarPeersListProvider = Provider<List<RadarPeer>>((ref) {
   final realPeers = ref.watch(discoveredPeersNotifierProvider);
   final showSimulated = ref.watch(simulatedPeersEnabledProvider);
@@ -31,10 +31,25 @@ final radarPeersListProvider = Provider<List<RadarPeer>>((ref) {
   // Map real peers from Supabase signaling
   for (int i = 0; i < realPeers.length; i++) {
     final p = realPeers[i];
-    final uuid = p['uuid']?.toString() ?? 'node-$i';
-    final name = p['displayName']?.toString() ?? 'Node ${uuid.substring(0, 4)}';
-    final email = p['userEmail']?.toString() ?? '';
-    final platform = p['platform']?.toString() ?? 'Enclave Mesh';
+    final uuid = p['uuid']?.toString() ?? 'peer-$i';
+    
+    // Resolve clean human name - never generic "Node ..."
+    String name = p['display_name']?.toString() ??
+        p['displayName']?.toString() ??
+        p['name']?.toString() ??
+        '';
+    final email = p['email']?.toString() ?? p['userEmail']?.toString() ?? '';
+
+    if (name.trim().isEmpty || name.toLowerCase() == 'agent') {
+      if (email.contains('@')) {
+        final userPart = email.split('@').first;
+        name = userPart.isNotEmpty ? userPart[0].toUpperCase() + userPart.substring(1) : userPart;
+      } else {
+        name = 'Agent ${uuid.length >= 4 ? uuid.substring(0, 4) : uuid}';
+      }
+    }
+
+    final platform = p['platform']?.toString() ?? 'Enclave Node';
 
     peers.add(
       RadarPeer(

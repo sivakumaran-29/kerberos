@@ -20,9 +20,16 @@ class MockWebRTCService extends Fake implements WebRTCService {
   Function()? onTransferComplete;
   @override
   Function(RTCDataChannelState state)? onDataChannelStateChanged;
+  @override
+  Function(String error)? onRemoteErrorOccurred;
+  @override
+  Function(String senderId)? onCancelReceived;
 
   @override
   Future<void> sendTextMessage(String text) async {}
+
+  @override
+  Future<void> initiateTransfer(String targetId) async {}
 
   @override
   void closeConnection() {}
@@ -31,6 +38,13 @@ class MockWebRTCService extends Fake implements WebRTCService {
 class MockSignalingService extends Fake implements SignalingService {
   @override
   List<Map<String, dynamic>> getDiscoveredPeers() => [];
+
+  @override
+  Future<void> sendSignal({
+    required String targetId,
+    required String type,
+    required Map<String, dynamic> payload,
+  }) async {}
 }
 
 class MockLedgerService extends Fake implements LedgerService {
@@ -114,6 +128,69 @@ void main() {
       expect(session.activePeer, isNull);
       expect(session.messages.isEmpty, isTrue);
 
+      session.dispose();
+    });
+
+    test('User 1 initiates connection and cancels while awaiting handshake', () async {
+      final session = P2PSessionService(
+        webrtc: MockWebRTCService(),
+        signaling: MockSignalingService(),
+        ledger: MockLedgerService(),
+      );
+
+      const remotePeer = RadarPeer(
+        uuid: 'remote-user-2',
+        displayName: 'Sivakumaran',
+        email: 'siva@enclave.io',
+        platform: 'Windows Enclave',
+        isSimulated: false,
+      );
+
+      // Start connecting (async)
+      final future = session.connectToPeer(remotePeer);
+      expect(session.sessionState, P2PSessionState.awaitingHandshake);
+      expect(session.activePeer?.displayName, 'Sivakumaran');
+
+      // User 1 decides to cancel
+      await session.cancelHandshake();
+      expect(session.sessionState, P2PSessionState.discovery);
+      expect(session.activePeer, isNull);
+
+      await future;
+      session.dispose();
+    });
+
+    test('User 1 initiates connection and remote peer declines', () async {
+      final mockWebRTC = MockWebRTCService();
+      final session = P2PSessionService(
+        webrtc: mockWebRTC,
+        signaling: MockSignalingService(),
+        ledger: MockLedgerService(),
+      );
+
+      String? declinedName;
+      session.onHandshakeDeclined = (name, reason) {
+        declinedName = name;
+      };
+
+      const remotePeer = RadarPeer(
+        uuid: 'remote-user-2',
+        displayName: 'Elena Rostova',
+        email: 'elena@vault.io',
+        platform: 'macOS Node',
+        isSimulated: false,
+      );
+
+      final future = session.connectToPeer(remotePeer);
+      expect(session.sessionState, P2PSessionState.awaitingHandshake);
+
+      // Remote peer declines
+      mockWebRTC.onRemoteErrorOccurred?.call('Recipient declined connection request');
+      expect(session.sessionState, P2PSessionState.discovery);
+      expect(session.activePeer, isNull);
+      expect(declinedName, 'Elena Rostova');
+
+      await future;
       session.dispose();
     });
   });

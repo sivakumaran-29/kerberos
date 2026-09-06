@@ -125,6 +125,11 @@ class IncomingTransferNotifier extends _$IncomingTransferNotifier {
         timestamp: DateTime.now(),
       );
     };
+    webrtc.onCancelReceived = (senderId) {
+      if (state != null && state!.senderId == senderId) {
+        state = null;
+      }
+    };
     return null;
   }
 

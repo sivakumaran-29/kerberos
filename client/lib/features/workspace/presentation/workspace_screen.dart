@@ -95,10 +95,14 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
           return; // Abort navigation and stay on Radar!
         }
         await sessionService.disconnect();
-      } else if (sessionService.sessionState == P2PSessionState.connected) {
+      } else if (sessionService.sessionState == P2PSessionState.connected ||
+          sessionService.sessionState == P2PSessionState.awaitingHandshake) {
         // Leaving the radar page terminates the active P2P session cleanly
         await sessionService.disconnect();
       }
+      ref.read(signalingServiceProvider).setInRadar(false);
+    } else if (index == 3) {
+      ref.read(signalingServiceProvider).setInRadar(true);
     }
 
     setState(() {
