@@ -2433,6 +2433,21 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
                     _buildDetailRow('FILE PATH', metadata.filePath),
                     const SizedBox(height: 8),
                     _buildDetailRow('SHA-256', metadata.sha256Hash, isMonospace: true, copyable: true),
+                    const SizedBox(height: 16),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        CyberButton(
+                          variant: CyberButtonVariant.emerald,
+                          height: 38,
+                          icon: Icons.verified_outlined,
+                          onTap: () {
+                            _navigateToPage(2);
+                          },
+                          child: const Text('Audit in Verification Protocol ➔'),
+                        ),
+                      ],
+                    ),
                   ],
                 ),
               );

@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+import '../../ledger/models/provenance_record.dart';
 
 /// Overall verification status of an asset under the Zero-Trust Protocol
 enum VerificationVerdict {
@@ -186,6 +187,18 @@ class CompleteVerificationReport {
   final MetadataScrubCheck metadataScrub;
   final SanitizationCheck sanitization;
 
+  /// The cryptographic ledger anchor matched via content-addressable SHA-256 or C2PA manifest
+  final ProvenanceRecord? matchedRecord;
+
+  /// The original filename sealed when the asset was first ingested into the air-gapped ledger
+  final String? originalSealedName;
+
+  /// True if the current file was renamed, but its cryptographic bitstream seal remains intact
+  final bool isRenamed;
+
+  /// Human-readable explanation of how the zero-trust correlation was established
+  final String? matchReason;
+
   const CompleteVerificationReport({
     required this.fileName,
     required this.fileSizeBytes,
@@ -196,6 +209,10 @@ class CompleteVerificationReport {
     required this.steganography,
     required this.metadataScrub,
     required this.sanitization,
+    this.matchedRecord,
+    this.originalSealedName,
+    this.isRenamed = false,
+    this.matchReason,
   });
 
   CompleteVerificationReport copyWith({
@@ -208,6 +225,10 @@ class CompleteVerificationReport {
     SteganographyCheck? steganography,
     MetadataScrubCheck? metadataScrub,
     SanitizationCheck? sanitization,
+    ProvenanceRecord? matchedRecord,
+    String? originalSealedName,
+    bool? isRenamed,
+    String? matchReason,
   }) {
     return CompleteVerificationReport(
       fileName: fileName ?? this.fileName,
@@ -219,6 +240,10 @@ class CompleteVerificationReport {
       steganography: steganography ?? this.steganography,
       metadataScrub: metadataScrub ?? this.metadataScrub,
       sanitization: sanitization ?? this.sanitization,
+      matchedRecord: matchedRecord ?? this.matchedRecord,
+      originalSealedName: originalSealedName ?? this.originalSealedName,
+      isRenamed: isRenamed ?? this.isRenamed,
+      matchReason: matchReason ?? this.matchReason,
     );
   }
 }

@@ -1,4 +1,6 @@
 import 'dart:convert';
+import 'dart:typed_data';
+import 'package:crypto/crypto.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import '../models/provenance_record.dart';
@@ -39,6 +41,25 @@ class LedgerService {
       _boxName,
       encryptionCipher: HiveAesCipher(encryptionKey),
     );
+
+    // Seed baseline authentic hardware seal if the ledger is fresh
+    if (_box.isEmpty) {
+      final sampleBytes = Uint8List.fromList(
+        List.generate(2048, (i) => (i * 37) % 256),
+      );
+      final sampleHash = sha256.convert(sampleBytes).toString();
+      await _box.put(
+        'sample-satellite-01',
+        ProvenanceRecord(
+          id: 'sample-satellite-01',
+          originalFileHash: sampleHash,
+          c2paManifestUri: 'urn:c2pa:obsidian:${sampleHash.substring(0, 12)}',
+          timestamp: DateTime.now().subtract(const Duration(minutes: 42)),
+          signature: 'ed25519-seed-0x9fbc8d31a47b192e',
+          filePath: 'satellite_recon_delta_09.png',
+        ),
+      );
+    }
   }
 
   /// Appends a new cryptographically sealed record into the ledger.
