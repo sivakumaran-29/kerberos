@@ -61,6 +61,8 @@ class P2PFileAttachment {
   final bool isCompleted;
   final bool isSealed;
   final String? localFilePath;
+  final bool isVoiceNote;
+  final int durationSeconds;
 
   const P2PFileAttachment({
     required this.fileId,
@@ -73,6 +75,8 @@ class P2PFileAttachment {
     this.isCompleted = false,
     this.isSealed = true,
     this.localFilePath,
+    this.isVoiceNote = false,
+    this.durationSeconds = 0,
   });
 
   P2PFileAttachment copyWith({
@@ -86,6 +90,8 @@ class P2PFileAttachment {
     bool? isCompleted,
     bool? isSealed,
     String? localFilePath,
+    bool? isVoiceNote,
+    int? durationSeconds,
   }) {
     return P2PFileAttachment(
       fileId: fileId ?? this.fileId,
@@ -98,6 +104,8 @@ class P2PFileAttachment {
       isCompleted: isCompleted ?? this.isCompleted,
       isSealed: isSealed ?? this.isSealed,
       localFilePath: localFilePath ?? this.localFilePath,
+      isVoiceNote: isVoiceNote ?? this.isVoiceNote,
+      durationSeconds: durationSeconds ?? this.durationSeconds,
     );
   }
 
@@ -109,6 +117,8 @@ class P2PFileAttachment {
       'sha256Hash': sha256Hash,
       'c2paManifestUri': c2paManifestUri,
       'isSealed': isSealed,
+      'isVoiceNote': isVoiceNote,
+      'durationSeconds': durationSeconds,
     };
   }
 
@@ -120,6 +130,8 @@ class P2PFileAttachment {
       sha256Hash: json['sha256Hash']?.toString() ?? '',
       c2paManifestUri: json['c2paManifestUri']?.toString() ?? '',
       isSealed: json['isSealed'] == true,
+      isVoiceNote: json['isVoiceNote'] == true,
+      durationSeconds: (json['durationSeconds'] as num?)?.toInt() ?? 0,
     );
   }
 }

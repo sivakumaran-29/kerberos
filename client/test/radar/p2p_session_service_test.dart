@@ -29,6 +29,9 @@ class MockWebRTCService extends Fake implements WebRTCService {
   Future<void> sendTextMessage(String text) async {}
 
   @override
+  Future<void> sendFileBytes(Uint8List bytes) async {}
+
+  @override
   Future<void> initiateTransfer(String targetId) async {}
 
   @override
@@ -226,6 +229,63 @@ void main() {
       // Only RTCDataChannelClosed disconnects
       mockWebRTC.onDataChannelStateChanged?.call(RTCDataChannelState.RTCDataChannelClosed);
       expect(session.sessionState, P2PSessionState.disconnected);
+
+      session.dispose();
+    });
+
+    test('P2PFileAttachment voice note properties and serialization', () {
+      final voiceAttachment = P2PFileAttachment(
+        fileId: 'vn-101',
+        fileName: 'voice_note_123.m4a',
+        fileSizeBytes: 65536,
+        sha256Hash: 'a1b2c3d4e5f67890123456789abcdef0123456789abcdef0123456789abcdef0',
+        c2paManifestUri: 'urn:c2pa:obsidian:voice:a1b2c3d4e5f6',
+        isVoiceNote: true,
+        durationSeconds: 14,
+      );
+
+      expect(voiceAttachment.isVoiceNote, isTrue);
+      expect(voiceAttachment.durationSeconds, 14);
+
+      final json = voiceAttachment.toJson();
+      expect(json['isVoiceNote'], isTrue);
+      expect(json['durationSeconds'], 14);
+
+      final deserialized = P2PFileAttachment.fromJson(json);
+      expect(deserialized.isVoiceNote, isTrue);
+      expect(deserialized.durationSeconds, 14);
+      expect(deserialized.fileName, 'voice_note_123.m4a');
+    });
+
+    test('P2PSessionService dispatches and seals voice notes over DataChannel', () async {
+      final mockWebRTC = MockWebRTCService();
+      final session = P2PSessionService(
+        webrtc: mockWebRTC,
+        signaling: MockSignalingService(),
+        ledger: MockLedgerService(),
+      );
+
+      const remotePeer = RadarPeer(
+        uuid: 'remote-user-2',
+        displayName: 'Sivakumaran',
+        email: 'siva@enclave.io',
+        platform: 'Windows Enclave',
+        isSimulated: false,
+      );
+
+      session.handleIncomingSessionAccepted(remotePeer);
+      expect(session.sessionState, P2PSessionState.connected);
+
+      final dummyAudioBytes = Uint8List.fromList([0, 1, 2, 3, 4, 5, 6, 7]);
+      await session.sendVoiceNote(audioBytes: dummyAudioBytes, durationSeconds: 8);
+
+      expect(session.messages.isNotEmpty, isTrue);
+      final lastMsg = session.messages.last;
+      expect(lastMsg.fileAttachment, isNotNull);
+      expect(lastMsg.fileAttachment!.isVoiceNote, isTrue);
+      expect(lastMsg.fileAttachment!.durationSeconds, 8);
+      expect(lastMsg.fileAttachment!.isCompleted, isTrue);
+      expect(lastMsg.fileAttachment!.isSealed, isTrue);
 
       session.dispose();
     });

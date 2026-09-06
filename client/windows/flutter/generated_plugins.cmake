@@ -4,9 +4,11 @@
 
 list(APPEND FLUTTER_PLUGIN_LIST
   app_links
+  audioplayers_windows
   desktop_drop
   flutter_webrtc
   objectbox_flutter_libs
+  record_windows
   url_launcher_windows
 )
 

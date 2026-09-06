@@ -8,6 +8,9 @@ import '../../../../shared/theme/cyber_theme.dart';
 import '../../../../shared/widgets/cyber_button.dart';
 import '../../models/radar_models.dart';
 import '../../services/p2p_session_service.dart';
+import '../../services/file_download_helper.dart';
+import '../../services/voice_note_service.dart';
+import 'voice_note_player_widget.dart';
 
 /// Ultra-premium Dark Obsidian P2P Encrypted Messaging Interface with Inline Asset Sealing
 class P2PChatScreen extends StatefulWidget {
@@ -29,16 +32,27 @@ class P2PChatScreen extends StatefulWidget {
 class _P2PChatScreenState extends State<P2PChatScreen> {
   final TextEditingController _textController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
+  final FocusNode _chatFocusNode = FocusNode();
+  final VoiceNoteService _voiceNoteService = VoiceNoteService();
 
   @override
   void initState() {
     super.initState();
     widget.sessionService.addListener(_handleSessionUpdate);
+    _voiceNoteService.addListener(_handleVoiceNoteUpdate);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _chatFocusNode.requestFocus();
+      }
+    });
   }
 
   @override
   void dispose() {
     widget.sessionService.removeListener(_handleSessionUpdate);
+    _voiceNoteService.removeListener(_handleVoiceNoteUpdate);
+    _voiceNoteService.dispose();
+    _chatFocusNode.dispose();
     _textController.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -48,6 +62,12 @@ class _P2PChatScreenState extends State<P2PChatScreen> {
     if (mounted) {
       setState(() {});
       _scrollToBottom();
+    }
+  }
+
+  void _handleVoiceNoteUpdate() {
+    if (mounted) {
+      setState(() {});
     }
   }
 
@@ -69,6 +89,39 @@ class _P2PChatScreenState extends State<P2PChatScreen> {
     _textController.clear();
     await widget.sessionService.sendTextMessage(text);
     _scrollToBottom();
+    _chatFocusNode.requestFocus();
+  }
+
+  Future<void> _startVoiceRecording() async {
+    final started = await _voiceNoteService.startRecording();
+    if (!started && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Microphone access denied or audio recording failed.',
+            style: GoogleFonts.plusJakartaSans(),
+          ),
+          backgroundColor: const Color(0xFFF43F5E),
+        ),
+      );
+    }
+  }
+
+  Future<void> _cancelVoiceRecording() async {
+    await _voiceNoteService.cancelRecording();
+  }
+
+  Future<void> _sendVoiceRecording() async {
+    final result = await _voiceNoteService.stopRecording();
+    if (result != null) {
+      await widget.sessionService.sendVoiceNote(
+        audioBytes: result.bytes,
+        durationSeconds: result.durationSeconds,
+        localFilePath: result.localFilePath,
+      );
+      _scrollToBottom();
+      _chatFocusNode.requestFocus();
+    }
   }
 
   Future<void> _pickAndSealAsset() async {
@@ -100,19 +153,31 @@ class _P2PChatScreenState extends State<P2PChatScreen> {
     final isTransferring = widget.sessionService.isTransferring;
     final transferProgress = widget.sessionService.transferProgress;
 
-    return Container(
-      decoration: BoxDecoration(
-        color: const Color(0x12FFFFFF),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: const Color(0x28FFFFFF), width: 1.2),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.4),
-            blurRadius: 32,
-            spreadRadius: -4,
-          ),
-        ],
-      ),
+    return KeyboardListener(
+      focusNode: FocusNode(),
+      onKeyEvent: (event) {
+        if (event is KeyDownEvent && !_chatFocusNode.hasFocus) {
+          final char = event.character;
+          if (char != null && char.isNotEmpty && char.codeUnitAt(0) >= 32) {
+            _chatFocusNode.requestFocus();
+            _textController.text = _textController.text + char;
+            _textController.selection = TextSelection.collapsed(offset: _textController.text.length);
+          }
+        }
+      },
+      child: Container(
+        decoration: BoxDecoration(
+          color: const Color(0x12FFFFFF),
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: const Color(0x28FFFFFF), width: 1.2),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.4),
+              blurRadius: 32,
+              spreadRadius: -4,
+            ),
+          ],
+        ),
       child: Column(
         children: [
           // 1. Session Header
@@ -142,6 +207,7 @@ class _P2PChatScreenState extends State<P2PChatScreen> {
           // 4. Compose Input Bar
           _buildComposeBar(),
         ],
+      ),
       ),
     );
   }
@@ -376,6 +442,10 @@ class _P2PChatScreenState extends State<P2PChatScreen> {
   // 3. PROVENANCE FILE ATTACHMENT CARD
   // ==========================================
   Widget _buildFileAttachmentCard(P2PFileAttachment file, bool isSelf) {
+    if (file.isVoiceNote) {
+      return VoiceNotePlayerWidget(file: file, isSelf: isSelf);
+    }
+
     return Container(
       constraints: const BoxConstraints(maxWidth: 340),
       padding: const EdgeInsets.all(14),
@@ -422,6 +492,16 @@ class _P2PChatScreenState extends State<P2PChatScreen> {
                   ],
                 ),
               ),
+              if (file.isCompleted && file.bytes != null)
+                IconButton(
+                  tooltip: 'Download ${file.fileName}',
+                  icon: const Icon(Icons.download_rounded, color: Color(0xFF34D399), size: 20),
+                  onPressed: () => FileDownloadHelper.downloadFile(
+                    context: context,
+                    fileName: file.fileName,
+                    bytes: file.bytes!,
+                  ),
+                ),
             ],
           ),
           const SizedBox(height: 10),
@@ -495,20 +575,36 @@ class _P2PChatScreenState extends State<P2PChatScreen> {
             ),
           ],
 
-          // Completed Actions: Audit in Verification Protocol
-          if (file.isCompleted && file.bytes != null && widget.onAuditInVerification != null) ...[
+          // Completed Actions: Download File and Audit in Verification Protocol
+          if (file.isCompleted && file.bytes != null) ...[
             const SizedBox(height: 10),
             Row(
               children: [
                 Expanded(
                   child: CyberButton(
-                    variant: CyberButtonVariant.emerald,
+                    variant: CyberButtonVariant.purple,
                     height: 32,
-                    icon: Icons.shield_outlined,
-                    onTap: () => widget.onAuditInVerification!(file.fileName, file.bytes!),
-                    child: const Text('Audit in Verify Protocol ➔'),
+                    icon: Icons.download_rounded,
+                    onTap: () => FileDownloadHelper.downloadFile(
+                      context: context,
+                      fileName: file.fileName,
+                      bytes: file.bytes!,
+                    ),
+                    child: const Text('Download File'),
                   ),
                 ),
+                if (widget.onAuditInVerification != null) ...[
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: CyberButton(
+                      variant: CyberButtonVariant.emerald,
+                      height: 32,
+                      icon: Icons.shield_outlined,
+                      onTap: () => widget.onAuditInVerification!(file.fileName, file.bytes!),
+                      child: const Text('Audit in Verify'),
+                    ),
+                  ),
+                ],
               ],
             ),
           ],
@@ -598,6 +694,107 @@ class _P2PChatScreenState extends State<P2PChatScreen> {
   // 6. COMPOSE INPUT BAR
   // ==========================================
   Widget _buildComposeBar() {
+    if (_voiceNoteService.isRecording) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: const Color(0x22160F2B),
+          borderRadius: const BorderRadius.vertical(bottom: Radius.circular(24)),
+          border: const Border(top: BorderSide(color: Color(0x35A855F7), width: 1.0)),
+        ),
+        child: Row(
+          children: [
+            // Pulsing Red REC Indicator
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: const Color(0x25EF4444),
+                borderRadius: BorderRadius.circular(100),
+                border: Border.all(color: const Color(0x60EF4444)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: const BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Color(0xFFEF4444),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    'REC',
+                    style: GoogleFonts.jetBrainsMono(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w900,
+                      color: const Color(0xFFEF4444),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+
+            // Live Timer
+            Text(
+              _voiceNoteService.formattedDuration,
+              style: GoogleFonts.jetBrainsMono(
+                fontSize: 14,
+                fontWeight: FontWeight.w800,
+                color: Colors.white,
+              ),
+            ),
+            const SizedBox(width: 14),
+
+            // Live Waveform Visualizer
+            Expanded(
+              child: SizedBox(
+                height: 24,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: List.generate(20, (i) {
+                    final h = (0.25 + (0.75 * (i % 4 == 0 ? 0.9 : (i % 3 == 0 ? 0.6 : 0.35)))).clamp(0.2, 1.0);
+                    return Container(
+                      width: 3,
+                      height: 24 * h,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFC084FC),
+                        borderRadius: BorderRadius.circular(100),
+                      ),
+                    );
+                  }),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+
+            // Cancel Button
+            CyberButton(
+              variant: CyberButtonVariant.danger,
+              height: 38,
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              icon: Icons.delete_outline_rounded,
+              onTap: _cancelVoiceRecording,
+              child: const Text('Cancel'),
+            ),
+            const SizedBox(width: 8),
+
+            // Send Voice Note Button
+            CyberButton(
+              variant: CyberButtonVariant.emerald,
+              height: 38,
+              padding: const EdgeInsets.symmetric(horizontal: 18),
+              icon: Icons.send_rounded,
+              onTap: _sendVoiceRecording,
+              child: const Text('Send'),
+            ),
+          ],
+        ),
+      );
+    }
+
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -618,7 +815,7 @@ class _P2PChatScreenState extends State<P2PChatScreen> {
           ),
           const SizedBox(width: 12),
 
-          // Message Input Field
+          // Message Input Field with direct auto-focus
           Expanded(
             child: Container(
               decoration: BoxDecoration(
@@ -629,6 +826,8 @@ class _P2PChatScreenState extends State<P2PChatScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
               child: TextField(
                 controller: _textController,
+                focusNode: _chatFocusNode,
+                autofocus: true,
                 style: GoogleFonts.plusJakartaSans(color: Colors.white, fontSize: 13.5),
                 decoration: InputDecoration(
                   border: InputBorder.none,
@@ -640,6 +839,25 @@ class _P2PChatScreenState extends State<P2PChatScreen> {
             ),
           ),
           const SizedBox(width: 10),
+
+          // WhatsApp-style Voice Note Mic Button
+          InkWell(
+            onTap: _startVoiceRecording,
+            borderRadius: BorderRadius.circular(12),
+            child: Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: const Color(0x22C084FC),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0x40C084FC)),
+              ),
+              child: const Center(
+                child: Icon(Icons.mic_rounded, color: Color(0xFFC084FC), size: 22),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
 
           // Send Button
           CyberButton(
