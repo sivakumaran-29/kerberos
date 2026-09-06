@@ -884,6 +884,13 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
     final userProfile = ref.watch(userProfileProvider);
     final provenanceState = ref.watch(provenanceTaskNotifierProvider);
     final incomingRequest = ref.watch(incomingTransferNotifierProvider);
+    final sessionService = ref.watch(p2pSessionServiceProvider);
+
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isMobile = screenWidth < 640;
+    final isFullscreenChat = isMobile &&
+        sessionService.sessionState == P2PSessionState.connected &&
+        _activeModal == ActiveDeckModal.radar;
 
     return Scaffold(
       backgroundColor: CyberTheme.background,
@@ -896,23 +903,32 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
 
           // 2. Clean Home Landing Page Content
           SafeArea(
+            top: !isFullscreenChat,
+            bottom: !isFullscreenChat,
             child: Column(
               children: [
-                // Floating Glass Navbar (Aesthetic capsule style, wide and balanced)
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-                  child: Center(
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 1200),
-                      child: _buildFloatingNavbar(userProfile),
+                // Floating Glass Navbar (Hidden when P2P Chat is active on mobile for full-screen chatting)
+                if (!isFullscreenChat)
+                  Padding(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: isMobile ? 12 : 24,
+                      vertical: isMobile ? 8 : 14,
+                    ),
+                    child: Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 1200),
+                        child: _buildFloatingNavbar(userProfile),
+                      ),
                     ),
                   ),
-                ),
 
                 // Floating Incoming Transfer Alert Banner (displayed when not on Radar page)
                 if (incomingRequest != null && _activeModal != ActiveDeckModal.radar)
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 6),
+                    padding: EdgeInsets.symmetric(
+                      horizontal: isMobile ? 12 : 24,
+                      vertical: 6,
+                    ),
                     child: Center(
                       child: ConstrainedBox(
                         constraints: const BoxConstraints(maxWidth: 1200),
@@ -951,15 +967,26 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
 
                       // Page 3: Next-Gen Enclave Radar (Mentimeter Orbital Mesh + P2P Chat + Inline Sealing)
                       Padding(
-                        padding: const EdgeInsets.fromLTRB(28, 4, 28, 16),
-                        child: Center(
-                          child: ConstrainedBox(
-                            constraints: const BoxConstraints(maxWidth: 1400),
-                            child: RadarPage(
-                              onNavigateToTab: (tabIndex) => _navigateToPage(tabIndex),
-                            ),
-                          ),
-                        ),
+                        padding: isFullscreenChat
+                            ? EdgeInsets.zero
+                            : EdgeInsets.fromLTRB(
+                                isMobile ? 8 : 28,
+                                isMobile ? 2 : 4,
+                                isMobile ? 8 : 28,
+                                isMobile ? 8 : 16,
+                              ),
+                        child: isFullscreenChat
+                            ? RadarPage(
+                                onNavigateToTab: (tabIndex) => _navigateToPage(tabIndex),
+                              )
+                            : Center(
+                                child: ConstrainedBox(
+                                  constraints: const BoxConstraints(maxWidth: 1400),
+                                  child: RadarPage(
+                                    onNavigateToTab: (tabIndex) => _navigateToPage(tabIndex),
+                                  ),
+                                ),
+                              ),
                       ),
 
                       // Page 4: Ledger Page

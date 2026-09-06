@@ -492,6 +492,38 @@ void main() {
 
       session.dispose();
     });
+
+    test('P2PSessionService gates seen receipts on isChatScreenVisible', () async {
+      final mockWebRTC = MockWebRTCService();
+      final session = P2PSessionService(
+        webrtc: mockWebRTC,
+        signaling: MockSignalingService(),
+        ledger: MockLedgerService(),
+      );
+
+      const remotePeer = RadarPeer(
+        uuid: 'remote-user-2',
+        displayName: 'Sivakumaran',
+        email: 'siva@enclave.io',
+        platform: 'Windows Enclave',
+        isSimulated: false,
+      );
+
+      session.handleIncomingSessionAccepted(remotePeer);
+
+      // By default isChatScreenVisible is false
+      expect(session.isChatScreenVisible, isFalse);
+
+      // Incoming message while user is NOT on chat screen
+      mockWebRTC.onTextMessageReceived?.call('{"type":"chat","id":"msg-in-1","text":"Are you there?"}');
+      expect(session.messages.last.text, 'Are you there?');
+
+      // User enters chat screen
+      session.setChatScreenVisible(true);
+      expect(session.isChatScreenVisible, isTrue);
+
+      session.dispose();
+    });
   });
 }
 

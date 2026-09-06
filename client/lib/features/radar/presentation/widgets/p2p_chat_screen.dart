@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math' as math;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
@@ -15,8 +16,8 @@ import '../../services/voice_note_service.dart';
 import 'voice_note_player_widget.dart';
 
 /// Ultra-premium Dark Obsidian P2P Encrypted Messaging Interface with Inline Asset Sealing,
-/// Instagram-style Seen Receipts, Live Peer Typing Indicator, WhatsApp Quoted Replies,
-/// and decluttered edge-to-edge mobile experience.
+/// Accurate Blue/White Seen Ticks, In-Feed Live Peer Typing Animation, Slide-to-Reply Gesture,
+/// Lightened Modern Bubble Aesthetics, and Adaptive Responsive Layouts.
 class P2PChatScreen extends StatefulWidget {
   final P2PSessionService sessionService;
   final VoidCallback onDisconnect;
@@ -33,7 +34,7 @@ class P2PChatScreen extends StatefulWidget {
   State<P2PChatScreen> createState() => _P2PChatScreenState();
 }
 
-class _P2PChatScreenState extends State<P2PChatScreen> {
+class _P2PChatScreenState extends State<P2PChatScreen> with WidgetsBindingObserver {
   final TextEditingController _textController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   final FocusNode _chatFocusNode = FocusNode();
@@ -45,12 +46,13 @@ class _P2PChatScreenState extends State<P2PChatScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     widget.sessionService.addListener(_handleSessionUpdate);
     _voiceNoteService.addListener(_handleVoiceNoteUpdate);
     _textController.addListener(_onTextChanged);
 
-    // Automatically mark existing peer messages as seen upon entering screen
-    widget.sessionService.markMessagesAsSeen();
+    // Mark chat screen as actively visible so seen receipts are sent accurately
+    widget.sessionService.setChatScreenVisible(true);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
@@ -60,7 +62,16 @@ class _P2PChatScreenState extends State<P2PChatScreen> {
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Only send read receipts when app is active and foregrounded
+    final isForeground = state == AppLifecycleState.resumed;
+    widget.sessionService.setChatScreenVisible(isForeground);
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    widget.sessionService.setChatScreenVisible(false);
     _typingDebounceTimer?.cancel();
     _textController.removeListener(_onTextChanged);
     widget.sessionService.removeListener(_handleSessionUpdate);
@@ -174,6 +185,7 @@ class _P2PChatScreenState extends State<P2PChatScreen> {
     }
   }
 
+  /// Direct audio file picker - 100% Web & Desktop safe (never evaluates picked.path on Web)
   Future<void> _pickAudioFileDirectly() async {
     try {
       final result = await FilePicker.platform.pickFiles(
@@ -185,10 +197,18 @@ class _P2PChatScreenState extends State<P2PChatScreen> {
       if (result != null && result.files.isNotEmpty) {
         final List<XFile> xFiles = [];
         for (final picked in result.files) {
-          if (picked.bytes != null && picked.bytes!.isNotEmpty) {
-            xFiles.add(XFile.fromData(picked.bytes!, name: picked.name, path: picked.path));
-          } else if (picked.path != null && picked.path!.isNotEmpty) {
-            xFiles.add(XFile(picked.path!));
+          if (kIsWeb) {
+            // On Web, accessing picked.path throws an exception; read bytes directly
+            if (picked.bytes != null && picked.bytes!.isNotEmpty) {
+              xFiles.add(XFile.fromData(picked.bytes!, name: picked.name));
+            }
+          } else {
+            // Non-web platforms (Windows, macOS, Linux, Android, iOS)
+            if (picked.path != null && picked.path!.isNotEmpty) {
+              xFiles.add(XFile(picked.path!));
+            } else if (picked.bytes != null && picked.bytes!.isNotEmpty) {
+              xFiles.add(XFile.fromData(picked.bytes!, name: picked.name));
+            }
           }
         }
         if (xFiles.isNotEmpty) {
@@ -208,6 +228,7 @@ class _P2PChatScreenState extends State<P2PChatScreen> {
     }
   }
 
+  /// Attach & Seal Asset Picker - 100% Web & Desktop safe (never evaluates picked.path on Web)
   Future<void> _pickAndSealAsset() async {
     try {
       final result = await FilePicker.platform.pickFiles(
@@ -222,10 +243,18 @@ class _P2PChatScreenState extends State<P2PChatScreen> {
       if (result != null && result.files.isNotEmpty) {
         final List<XFile> xFiles = [];
         for (final picked in result.files) {
-          if (picked.bytes != null && picked.bytes!.isNotEmpty) {
-            xFiles.add(XFile.fromData(picked.bytes!, name: picked.name, path: picked.path));
-          } else if (picked.path != null && picked.path!.isNotEmpty) {
-            xFiles.add(XFile(picked.path!));
+          if (kIsWeb) {
+            // On Web, accessing picked.path throws an exception; read bytes directly
+            if (picked.bytes != null && picked.bytes!.isNotEmpty) {
+              xFiles.add(XFile.fromData(picked.bytes!, name: picked.name));
+            }
+          } else {
+            // Non-web platforms (Windows, macOS, Linux, Android, iOS)
+            if (picked.path != null && picked.path!.isNotEmpty) {
+              xFiles.add(XFile(picked.path!));
+            } else if (picked.bytes != null && picked.bytes!.isNotEmpty) {
+              xFiles.add(XFile.fromData(picked.bytes!, name: picked.name));
+            }
           }
         }
         if (xFiles.isNotEmpty) {
@@ -245,14 +274,6 @@ class _P2PChatScreenState extends State<P2PChatScreen> {
     }
   }
 
-  String _formatSeenText(DateTime? seenAt) {
-    if (seenAt == null) return 'Seen';
-    final diff = DateTime.now().difference(seenAt);
-    if (diff.inSeconds < 60) return 'Seen just now';
-    if (diff.inMinutes < 60) return 'Seen ${diff.inMinutes}m ago';
-    return 'Seen ${seenAt.hour.toString().padLeft(2, '0')}:${seenAt.minute.toString().padLeft(2, '0')}';
-  }
-
   @override
   Widget build(BuildContext context) {
     final peer = widget.sessionService.activePeer;
@@ -263,15 +284,6 @@ class _P2PChatScreenState extends State<P2PChatScreen> {
     final isPeerTyping = widget.sessionService.isPeerTyping;
     final screenWidth = MediaQuery.of(context).size.width;
     final isMobile = screenWidth < 640;
-
-    // Identify latest self message index for Instagram-style seen receipt
-    int latestSelfMessageIndex = -1;
-    for (int i = messages.length - 1; i >= 0; i--) {
-      if (messages[i].isSelf && !messages[i].isSystemNotice) {
-        latestSelfMessageIndex = i;
-        break;
-      }
-    }
 
     return KeyboardListener(
       focusNode: FocusNode(),
@@ -305,30 +317,38 @@ class _P2PChatScreenState extends State<P2PChatScreen> {
             // 1. Session Header
             _buildSessionHeader(peer, isMobile),
 
-            // 2. Chat Timeline
+            // 2. Chat Timeline with In-Stream Peer Typing Animation
             Expanded(
               child: ListView.builder(
                 controller: _scrollController,
                 padding: EdgeInsets.symmetric(
-                  horizontal: isMobile ? 8 : 20,
-                  vertical: isMobile ? 8 : 16,
+                  horizontal: isMobile ? 8 : 18,
+                  vertical: isMobile ? 6 : 14,
                 ),
-                itemCount: messages.length,
+                itemCount: messages.length + (isPeerTyping ? 1 : 0),
                 itemBuilder: (context, index) {
+                  // In-Feed Peer Typing Indicator right where the incoming message will appear
+                  if (index == messages.length) {
+                    return _buildPeerTypingBubble(peer, isMobile);
+                  }
+
                   final message = messages[index];
                   if (message.isSystemNotice) {
                     return _buildSystemNotice(message);
                   }
-                  final isLatestSelf = index == latestSelfMessageIndex;
-                  return _buildMessageBubble(message, screenWidth, isMobile, isLatestSelf);
+                  return _SlideToReplyBubble(
+                    key: ValueKey(message.id),
+                    onReply: () {
+                      setState(() {
+                        _replyingToMessage = message;
+                      });
+                      _chatFocusNode.requestFocus();
+                    },
+                    child: _buildMessageBubble(message, screenWidth, isMobile),
+                  );
                 },
               ),
             ),
-
-            // Live Peer Typing Indicator Bubble
-            if (isPeerTyping) ...[
-              _TypingBubble(peerName: peer?.displayName ?? 'Peer'),
-            ],
 
             // 3. Inline Sealing & Streaming Progress Indicator
             if (isSealing || isTransferring || widget.sessionService.transferQueueCount > 0) ...[
@@ -356,8 +376,8 @@ class _P2PChatScreenState extends State<P2PChatScreen> {
 
     return Container(
       padding: EdgeInsets.symmetric(
-        horizontal: isMobile ? 10 : 20,
-        vertical: isMobile ? 8 : 14,
+        horizontal: isMobile ? 10 : 18,
+        vertical: isMobile ? 8 : 12,
       ),
       decoration: BoxDecoration(
         color: const Color(0x18FFFFFF),
@@ -371,8 +391,8 @@ class _P2PChatScreenState extends State<P2PChatScreen> {
             clipBehavior: Clip.none,
             children: [
               Container(
-                width: isMobile ? 32 : 42,
-                height: isMobile ? 32 : 42,
+                width: isMobile ? 32 : 38,
+                height: isMobile ? 32 : 38,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   gradient: CyberTheme.shardGradient,
@@ -387,7 +407,7 @@ class _P2PChatScreenState extends State<P2PChatScreen> {
                   child: Text(
                     displayName.isNotEmpty ? displayName[0].toUpperCase() : 'P',
                     style: GoogleFonts.plusJakartaSans(
-                      fontSize: isMobile ? 13 : 18,
+                      fontSize: isMobile ? 13 : 16,
                       fontWeight: FontWeight.w900,
                       color: Colors.white,
                     ),
@@ -398,8 +418,8 @@ class _P2PChatScreenState extends State<P2PChatScreen> {
                 right: 0,
                 bottom: 0,
                 child: Container(
-                  width: isMobile ? 8 : 10,
-                  height: isMobile ? 8 : 10,
+                  width: isMobile ? 8 : 9,
+                  height: isMobile ? 8 : 9,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     color: const Color(0xFF10B981),
@@ -409,7 +429,7 @@ class _P2PChatScreenState extends State<P2PChatScreen> {
               ),
             ],
           ),
-          SizedBox(width: isMobile ? 8 : 14),
+          SizedBox(width: isMobile ? 8 : 12),
 
           // Peer Info
           Expanded(
@@ -449,7 +469,7 @@ class _P2PChatScreenState extends State<P2PChatScreen> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 2),
+                const SizedBox(height: 1.5),
                 Row(
                   children: [
                     Container(
@@ -482,7 +502,7 @@ class _P2PChatScreenState extends State<P2PChatScreen> {
           ),
           const SizedBox(width: 8),
 
-          // Disconnect Button
+          // End Session Button
           isMobile
               ? Tooltip(
                   message: 'End Session',
@@ -505,8 +525,8 @@ class _P2PChatScreenState extends State<P2PChatScreen> {
                 )
               : CyberButton(
                   variant: CyberButtonVariant.danger,
-                  height: 36,
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  height: 34,
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
                   icon: Icons.link_off_rounded,
                   onTap: widget.onDisconnect,
                   child: const Text('End Session'),
@@ -517,183 +537,198 @@ class _P2PChatScreenState extends State<P2PChatScreen> {
   }
 
   // ==========================================
-  // 2. CHAT MESSAGE BUBBLES
+  // 2. CHAT MESSAGE BUBBLE WITH TICKS & LIGHTENED COLORS
   // ==========================================
   Widget _buildMessageBubble(
     P2PChatMessage message,
     double screenWidth,
     bool isMobile,
-    bool isLatestSelf,
   ) {
     final isSelf = message.isSelf;
     final bubbleMaxWidth = isMobile
-        ? (screenWidth * 0.86).clamp(220.0, 400.0)
-        : (screenWidth * 0.78).clamp(240.0, 480.0);
+        ? (screenWidth * 0.86).clamp(210.0, 390.0)
+        : (screenWidth * 0.76).clamp(240.0, 480.0);
 
     return Padding(
-      padding: EdgeInsets.symmetric(vertical: isMobile ? 3 : 5),
-      child: Column(
-        crossAxisAlignment: isSelf ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+      padding: EdgeInsets.symmetric(vertical: isMobile ? 2.5 : 4.0),
+      child: Row(
+        mainAxisAlignment: isSelf ? MainAxisAlignment.end : MainAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          Row(
-            mainAxisAlignment: isSelf ? MainAxisAlignment.end : MainAxisAlignment.start,
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              if (!isSelf) ...[
-                Container(
-                  width: isMobile ? 24 : 26,
-                  height: isMobile ? 24 : 26,
-                  margin: const EdgeInsets.only(right: 6, bottom: 2),
-                  decoration: const BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: CyberTheme.shardGradient,
-                  ),
-                  child: Center(
-                    child: Text(
-                      message.senderName.isNotEmpty ? message.senderName[0].toUpperCase() : 'P',
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: isMobile ? 9.5 : 10,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-              Flexible(
-                child: GestureDetector(
-                  onDoubleTap: () {
-                    setState(() {
-                      _replyingToMessage = message;
-                    });
-                    _chatFocusNode.requestFocus();
-                  },
-                  child: Container(
-                    constraints: BoxConstraints(maxWidth: bubbleMaxWidth),
-                    padding: EdgeInsets.symmetric(
-                      horizontal: isMobile ? 11 : 14,
-                      vertical: isMobile ? 8 : 10,
-                    ),
-                    decoration: BoxDecoration(
-                      color: isSelf ? const Color(0xFF6B21A8) : const Color(0x30FFFFFF),
-                      borderRadius: BorderRadius.only(
-                        topLeft: const Radius.circular(16),
-                        topRight: const Radius.circular(16),
-                        bottomLeft: Radius.circular(isSelf ? 16 : 4),
-                        bottomRight: Radius.circular(isSelf ? 4 : 16),
-                      ),
-                      border: Border.all(
-                        color: isSelf ? const Color(0xFFC084FC) : const Color(0x28FFFFFF),
-                        width: 1.0,
-                      ),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: isSelf ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-                      children: [
-                        // Embedded Quote Card (if replying to another message)
-                        if (message.replyToText != null && message.replyToText!.isNotEmpty) ...[
-                          _buildEmbeddedReplyCard(message, isSelf),
-                        ],
-
-                        // File Attachment Card (if message has file)
-                        if (message.fileAttachment != null) ...[
-                          _buildFileAttachmentCard(message.fileAttachment!, isSelf, screenWidth, isMobile),
-                          const SizedBox(height: 6),
-                        ],
-
-                        // Text content
-                        if (message.text.isNotEmpty &&
-                            (message.fileAttachment == null || !message.text.startsWith('Sent sealed digital asset:'))) ...[
-                          SelectableText(
-                            message.text,
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: isMobile ? 13.0 : 13.5,
-                              color: Colors.white,
-                              height: 1.35,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                        ],
-
-                        // Timestamp & Quick Reply Icon
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              '${message.timestamp.hour.toString().padLeft(2, '0')}:${message.timestamp.minute.toString().padLeft(2, '0')}',
-                              style: GoogleFonts.jetBrainsMono(
-                                fontSize: 9.0,
-                                color: isSelf ? const Color(0xFFE9D5FF) : const Color(0xFF94A3B8),
-                              ),
-                            ),
-                            const SizedBox(width: 6),
-                            InkWell(
-                              onTap: () {
-                                setState(() {
-                                  _replyingToMessage = message;
-                                });
-                                _chatFocusNode.requestFocus();
-                              },
-                              borderRadius: BorderRadius.circular(10),
-                              child: Padding(
-                                padding: const EdgeInsets.all(2.0),
-                                child: Icon(
-                                  Icons.reply_rounded,
-                                  size: 13,
-                                  color: isSelf ? const Color(0xFFE9D5FF).withValues(alpha: 0.7) : const Color(0xFF94A3B8),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
+          if (!isSelf) ...[
+            Container(
+              width: isMobile ? 24 : 26,
+              height: isMobile ? 24 : 26,
+              margin: const EdgeInsets.only(right: 6, bottom: 2),
+              decoration: const BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: CyberTheme.shardGradient,
+              ),
+              child: Center(
+                child: Text(
+                  message.senderName.isNotEmpty ? message.senderName[0].toUpperCase() : 'P',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: isMobile ? 9.5 : 10,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
                   ),
                 ),
               ),
-            ],
-          ),
-
-          // Instagram-style "Seen just now" / "Seen Xm ago" indicator
-          if (isSelf && isLatestSelf && message.isSeen) ...[
-            Padding(
-              padding: const EdgeInsets.only(top: 3, right: 6),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
+            ),
+          ],
+          Flexible(
+            child: Container(
+              constraints: BoxConstraints(maxWidth: bubbleMaxWidth),
+              padding: EdgeInsets.symmetric(
+                horizontal: isMobile ? 10 : 13,
+                vertical: isMobile ? 7 : 9,
+              ),
+              decoration: BoxDecoration(
+                // Lightened, elegant, non-harsh modern violet glass for sent messages
+                color: isSelf
+                    ? const Color(0xFF7C3AED).withValues(alpha: 0.38)
+                    : const Color(0x24FFFFFF),
+                borderRadius: BorderRadius.only(
+                  topLeft: const Radius.circular(16),
+                  topRight: const Radius.circular(16),
+                  bottomLeft: Radius.circular(isSelf ? 16 : 4),
+                  bottomRight: Radius.circular(isSelf ? 4 : 16),
+                ),
+                border: Border.all(
+                  color: isSelf ? const Color(0x65C084FC) : const Color(0x20FFFFFF),
+                  width: 1.0,
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: isSelf ? CrossAxisAlignment.end : CrossAxisAlignment.start,
                 children: [
-                  const Icon(Icons.done_all_rounded, size: 12, color: Color(0xFF38BDF8)),
-                  const SizedBox(width: 4),
-                  Text(
-                    _formatSeenText(message.seenAt),
-                    style: GoogleFonts.jetBrainsMono(
-                      fontSize: 9.5,
-                      fontWeight: FontWeight.w600,
-                      color: const Color(0xFF38BDF8),
+                  // Embedded Quote Card (if replying to another message)
+                  if (message.replyToText != null && message.replyToText!.isNotEmpty) ...[
+                    _buildEmbeddedReplyCard(message, isSelf),
+                  ],
+
+                  // File Attachment Card (if message has file)
+                  if (message.fileAttachment != null) ...[
+                    _buildFileAttachmentCard(message.fileAttachment!, isSelf, screenWidth, isMobile),
+                    const SizedBox(height: 5),
+                  ],
+
+                  // Text content with lightened crisp font
+                  if (message.text.isNotEmpty &&
+                      (message.fileAttachment == null || !message.text.startsWith('Sent sealed digital asset:'))) ...[
+                    SelectableText(
+                      message.text,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: isMobile ? 13.0 : 13.5,
+                        color: const Color(0xFFF8FAFC),
+                        fontWeight: FontWeight.w500,
+                        height: 1.35,
+                      ),
                     ),
+                    const SizedBox(height: 3),
+                  ],
+
+                  // Timestamp, Reply Action, and Blue/White Ticks
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        '${message.timestamp.hour.toString().padLeft(2, '0')}:${message.timestamp.minute.toString().padLeft(2, '0')}',
+                        style: GoogleFonts.jetBrainsMono(
+                          fontSize: 8.5,
+                          color: isSelf ? const Color(0xFFE2E8F0) : const Color(0xFF94A3B8),
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+
+                      // Quick Reply Icon button
+                      InkWell(
+                        onTap: () {
+                          setState(() {
+                            _replyingToMessage = message;
+                          });
+                          _chatFocusNode.requestFocus();
+                        },
+                        borderRadius: BorderRadius.circular(8),
+                        child: Padding(
+                          padding: const EdgeInsets.all(1.5),
+                          child: Icon(
+                            Icons.reply_rounded,
+                            size: 12,
+                            color: isSelf ? const Color(0xFFE2E8F0).withValues(alpha: 0.7) : const Color(0xFF94A3B8),
+                          ),
+                        ),
+                      ),
+
+                      // Seen Status: Simple Blue Tick if seen, Simple White Tick if not seen
+                      if (isSelf) ...[
+                        const SizedBox(width: 3),
+                        Icon(
+                          message.isSeen ? Icons.done_all_rounded : Icons.done_rounded,
+                          size: 13,
+                          color: message.isSeen ? const Color(0xFF38BDF8) : const Color(0xFFE2E8F0),
+                        ),
+                      ],
+                    ],
                   ),
                 ],
               ),
             ),
-          ],
+          ),
         ],
       ),
     );
   }
 
   // ==========================================
-  // 3. EMBEDDED QUOTE CARD IN MESSAGE BUBBLE
+  // 3. IN-FEED PEER TYPING BUBBLE (AT TEXT INCOMING POSITION)
+  // ==========================================
+  Widget _buildPeerTypingBubble(RadarPeer? peer, bool isMobile) {
+    return Padding(
+      padding: EdgeInsets.symmetric(vertical: isMobile ? 3 : 5),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          Container(
+            width: isMobile ? 24 : 26,
+            height: isMobile ? 24 : 26,
+            margin: const EdgeInsets.only(right: 6, bottom: 2),
+            decoration: const BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: CyberTheme.shardGradient,
+            ),
+            child: Center(
+              child: Text(
+                peer?.displayName.isNotEmpty == true ? peer!.displayName[0].toUpperCase() : 'P',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: isMobile ? 9.5 : 10,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ),
+          _TypingDotsBubble(peerName: peer?.displayName ?? 'Peer'),
+        ],
+      ),
+    );
+  }
+
+  // ==========================================
+  // 4. EMBEDDED QUOTE CARD IN MESSAGE BUBBLE
   // ==========================================
   Widget _buildEmbeddedReplyCard(P2PChatMessage message, bool isSelf) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 6),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      margin: const EdgeInsets.only(bottom: 5),
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
       decoration: BoxDecoration(
         color: Colors.black.withValues(alpha: 0.35),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(6),
         border: Border(
           left: BorderSide(
             color: isSelf ? const Color(0xFFE9D5FF) : const Color(0xFF38BDF8),
-            width: 3.0,
+            width: 2.5,
           ),
         ),
       ),
@@ -704,7 +739,7 @@ class _P2PChatScreenState extends State<P2PChatScreen> {
           Text(
             message.replyToSender ?? 'Peer',
             style: GoogleFonts.plusJakartaSans(
-              fontSize: 10.5,
+              fontSize: 10.0,
               fontWeight: FontWeight.w800,
               color: isSelf ? const Color(0xFFE9D5FF) : const Color(0xFF38BDF8),
             ),
@@ -713,7 +748,7 @@ class _P2PChatScreenState extends State<P2PChatScreen> {
           Text(
             message.replyToText!,
             style: GoogleFonts.plusJakartaSans(
-              fontSize: 11.0,
+              fontSize: 10.5,
               color: const Color(0xFFE2E8F0),
             ),
             maxLines: 2,
@@ -725,7 +760,7 @@ class _P2PChatScreenState extends State<P2PChatScreen> {
   }
 
   // ==========================================
-  // 4. QUOTED REPLY BANNER (ABOVE COMPOSE BAR)
+  // 5. QUOTED REPLY BANNER (ABOVE COMPOSE BAR)
   // ==========================================
   Widget _buildQuotedReplyBanner(bool isMobile) {
     if (_replyingToMessage == null) return const SizedBox.shrink();
@@ -735,18 +770,18 @@ class _P2PChatScreenState extends State<P2PChatScreen> {
         : rep.text;
 
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: isMobile ? 12 : 16, vertical: 8),
+      padding: EdgeInsets.symmetric(horizontal: isMobile ? 10 : 14, vertical: 6),
       decoration: BoxDecoration(
         color: const Color(0x351E1538),
         border: const Border(
           top: BorderSide(color: Color(0x30C084FC), width: 1.0),
-          left: BorderSide(color: Color(0xFFC084FC), width: 4.0),
+          left: BorderSide(color: Color(0xFFC084FC), width: 3.5),
         ),
       ),
       child: Row(
         children: [
-          const Icon(Icons.reply_rounded, size: 18, color: Color(0xFFC084FC)),
-          const SizedBox(width: 8),
+          const Icon(Icons.reply_rounded, size: 16, color: Color(0xFFC084FC)),
+          const SizedBox(width: 7),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -755,7 +790,7 @@ class _P2PChatScreenState extends State<P2PChatScreen> {
                 Text(
                   'Replying to ${rep.senderName}',
                   style: GoogleFonts.plusJakartaSans(
-                    fontSize: 11.5,
+                    fontSize: 11.0,
                     fontWeight: FontWeight.w700,
                     color: const Color(0xFFC084FC),
                   ),
@@ -764,7 +799,7 @@ class _P2PChatScreenState extends State<P2PChatScreen> {
                 Text(
                   previewText,
                   style: GoogleFonts.plusJakartaSans(
-                    fontSize: 11.5,
+                    fontSize: 11.0,
                     color: const Color(0xFFCBD5E1),
                   ),
                   maxLines: 1,
@@ -774,10 +809,10 @@ class _P2PChatScreenState extends State<P2PChatScreen> {
             ),
           ),
           IconButton(
-            icon: const Icon(Icons.close_rounded, size: 18, color: Color(0xFF94A3B8)),
+            icon: const Icon(Icons.close_rounded, size: 16, color: Color(0xFF94A3B8)),
             padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
-            splashRadius: 16,
+            constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
+            splashRadius: 14,
             onPressed: () {
               setState(() {
                 _replyingToMessage = null;
@@ -790,7 +825,7 @@ class _P2PChatScreenState extends State<P2PChatScreen> {
   }
 
   // ==========================================
-  // 5. PROVENANCE FILE ATTACHMENT CARD
+  // 6. PROVENANCE FILE ATTACHMENT CARD
   // ==========================================
   Widget _buildFileAttachmentCard(
     P2PFileAttachment file,
@@ -805,16 +840,16 @@ class _P2PChatScreenState extends State<P2PChatScreen> {
     }
 
     final cardMaxWidth = isMobile
-        ? (screenWidth * 0.76).clamp(200.0, 320.0)
-        : (screenWidth * 0.74).clamp(220.0, 340.0);
+        ? (screenWidth * 0.72).clamp(190.0, 290.0)
+        : (screenWidth * 0.65).clamp(210.0, 320.0);
 
     return Container(
       constraints: BoxConstraints(maxWidth: cardMaxWidth),
-      padding: EdgeInsets.all(isMobile ? 10 : 12),
+      padding: EdgeInsets.all(isMobile ? 8 : 10),
       decoration: BoxDecoration(
         color: Colors.black.withValues(alpha: 0.4),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0x4010B981), width: 1.2),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0x4010B981), width: 1.0),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -822,14 +857,14 @@ class _P2PChatScreenState extends State<P2PChatScreen> {
           Row(
             children: [
               Container(
-                width: isMobile ? 32 : 36,
-                height: isMobile ? 32 : 36,
+                width: isMobile ? 30 : 34,
+                height: isMobile ? 30 : 34,
                 decoration: BoxDecoration(
                   color: const Color(0x2210B981),
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(7),
                   border: Border.all(color: const Color(0x6010B981)),
                 ),
-                child: Icon(Icons.file_present_rounded, color: const Color(0xFF34D399), size: isMobile ? 18 : 20),
+                child: Icon(Icons.file_present_rounded, color: const Color(0xFF34D399), size: isMobile ? 17 : 19),
               ),
               const SizedBox(width: 8),
               Expanded(
@@ -839,17 +874,17 @@ class _P2PChatScreenState extends State<P2PChatScreen> {
                     Text(
                       file.fileName,
                       style: GoogleFonts.plusJakartaSans(
-                        fontSize: isMobile ? 12.0 : 13.0,
+                        fontSize: isMobile ? 11.5 : 12.5,
                         fontWeight: FontWeight.w800,
                         color: Colors.white,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 2),
+                    const SizedBox(height: 1.5),
                     Text(
                       '${(file.fileSizeBytes / 1024).toStringAsFixed(1)} KB',
-                      style: GoogleFonts.jetBrainsMono(fontSize: 9.5, color: const Color(0xFF94A3B8)),
+                      style: GoogleFonts.jetBrainsMono(fontSize: 9.0, color: const Color(0xFF94A3B8)),
                     ),
                   ],
                 ),
@@ -857,9 +892,9 @@ class _P2PChatScreenState extends State<P2PChatScreen> {
               if (file.isCompleted && file.bytes != null)
                 IconButton(
                   tooltip: 'Download ${file.fileName}',
-                  icon: const Icon(Icons.download_rounded, color: Color(0xFF34D399), size: 19),
+                  icon: const Icon(Icons.download_rounded, color: Color(0xFF34D399), size: 18),
                   padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                  constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
                   onPressed: () => FileDownloadHelper.downloadFile(
                     context: context,
                     fileName: file.fileName,
@@ -868,26 +903,26 @@ class _P2PChatScreenState extends State<P2PChatScreen> {
                 ),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
 
           // C2PA Seal Pill
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
             decoration: BoxDecoration(
               color: const Color(0x2510B981),
-              borderRadius: BorderRadius.circular(6),
+              borderRadius: BorderRadius.circular(5),
               border: Border.all(color: const Color(0x5010B981)),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.verified_user_rounded, size: 11, color: Color(0xFF34D399)),
-                const SizedBox(width: 5),
+                const Icon(Icons.verified_user_rounded, size: 10, color: Color(0xFF34D399)),
+                const SizedBox(width: 4),
                 Flexible(
                   child: Text(
                     'C2PA HARDWARE SEAL VERIFIED',
                     style: GoogleFonts.jetBrainsMono(
-                      fontSize: 8.0,
+                      fontSize: 7.5,
                       fontWeight: FontWeight.w900,
                       color: const Color(0xFF34D399),
                       letterSpacing: 0.5,
@@ -899,14 +934,14 @@ class _P2PChatScreenState extends State<P2PChatScreen> {
               ],
             ),
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 5),
 
           // SHA-256 Hash with Copy
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3.5),
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
             decoration: BoxDecoration(
               color: const Color(0x18FFFFFF),
-              borderRadius: BorderRadius.circular(6),
+              borderRadius: BorderRadius.circular(5),
             ),
             child: Row(
               children: [
@@ -915,7 +950,7 @@ class _P2PChatScreenState extends State<P2PChatScreen> {
                     file.sha256Hash.length > 20
                         ? 'SHA-256: ${file.sha256Hash.substring(0, 8)}...${file.sha256Hash.substring(file.sha256Hash.length - 6)}'
                         : 'SHA-256: ${file.sha256Hash}',
-                    style: GoogleFonts.jetBrainsMono(fontSize: 8.5, color: const Color(0xFFE2E8F0)),
+                    style: GoogleFonts.jetBrainsMono(fontSize: 8.0, color: const Color(0xFFE2E8F0)),
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
@@ -934,27 +969,27 @@ class _P2PChatScreenState extends State<P2PChatScreen> {
 
           // Progress Bar during active transfer
           if (!file.isCompleted) ...[
-            const SizedBox(height: 8),
+            const SizedBox(height: 6),
             ClipRRect(
               borderRadius: BorderRadius.circular(100),
               child: LinearProgressIndicator(
                 value: file.progress > 0 ? file.progress : null,
                 backgroundColor: const Color(0x30FFFFFF),
                 valueColor: const AlwaysStoppedAnimation(Color(0xFF34D399)),
-                minHeight: 3,
+                minHeight: 2.5,
               ),
             ),
           ],
 
           // Completed Actions: Download File and Audit in Verification Protocol
           if (file.isCompleted && file.bytes != null) ...[
-            const SizedBox(height: 8),
+            const SizedBox(height: 7),
             Row(
               children: [
                 Expanded(
                   child: CyberButton(
                     variant: CyberButtonVariant.purple,
-                    height: 30,
+                    height: 28,
                     icon: Icons.download_rounded,
                     onTap: () => FileDownloadHelper.downloadFile(
                       context: context,
@@ -969,7 +1004,7 @@ class _P2PChatScreenState extends State<P2PChatScreen> {
                   Expanded(
                     child: CyberButton(
                       variant: CyberButtonVariant.emerald,
-                      height: 30,
+                      height: 28,
                       icon: Icons.shield_outlined,
                       onTap: () => widget.onAuditInVerification!(file.fileName, file.bytes!),
                       child: const Text('Audit'),
@@ -985,13 +1020,13 @@ class _P2PChatScreenState extends State<P2PChatScreen> {
   }
 
   // ==========================================
-  // 6. SYSTEM NOTICE
+  // 7. SYSTEM NOTICE
   // ==========================================
   Widget _buildSystemNotice(P2PChatMessage message) {
     return Center(
       child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 6),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        margin: const EdgeInsets.symmetric(vertical: 5),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3.5),
         decoration: BoxDecoration(
           color: const Color(0x1AFFFFFF),
           borderRadius: BorderRadius.circular(100),
@@ -1000,7 +1035,7 @@ class _P2PChatScreenState extends State<P2PChatScreen> {
         child: Text(
           message.text,
           style: GoogleFonts.jetBrainsMono(
-            fontSize: 10.0,
+            fontSize: 9.5,
             fontWeight: FontWeight.w600,
             color: const Color(0xFF94A3B8),
           ),
@@ -1011,23 +1046,23 @@ class _P2PChatScreenState extends State<P2PChatScreen> {
   }
 
   // ==========================================
-  // 7. ACTIVE TRANSFER & SEALING BANNER
+  // 8. ACTIVE TRANSFER & SEALING BANNER
   // ==========================================
   Widget _buildActiveTransferBanner(bool isSealing, double progress, bool isMobile) {
     final queueCount = widget.sessionService.transferQueueCount;
 
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: isMobile ? 10 : 16, vertical: 6),
+      padding: EdgeInsets.symmetric(horizontal: isMobile ? 8 : 14, vertical: 5),
       color: isSealing ? const Color(0x22A855F7) : const Color(0x2210B981),
       child: Column(
         children: [
           Row(
             children: [
               SizedBox(
-                width: 12,
-                height: 12,
+                width: 11,
+                height: 11,
                 child: CircularProgressIndicator(
-                  strokeWidth: 2,
+                  strokeWidth: 1.8,
                   color: isSealing ? const Color(0xFFC084FC) : const Color(0xFF34D399),
                 ),
               ),
@@ -1038,7 +1073,7 @@ class _P2PChatScreenState extends State<P2PChatScreen> {
                       ? '> INLINE SEALING: ${widget.sessionService.sealingStep}'
                       : '> STREAMING: ${(progress * 100).toStringAsFixed(0)}% • ${widget.sessionService.activeTransferringFileName}',
                   style: GoogleFonts.jetBrainsMono(
-                    fontSize: isMobile ? 9.5 : 10.5,
+                    fontSize: isMobile ? 9.0 : 10.0,
                     fontWeight: FontWeight.w700,
                     color: isSealing ? const Color(0xFFE9D5FF) : const Color(0xFF34D399),
                   ),
@@ -1049,7 +1084,7 @@ class _P2PChatScreenState extends State<P2PChatScreen> {
               if (queueCount > 0) ...[
                 const SizedBox(width: 6),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
                   decoration: BoxDecoration(
                     color: const Color(0x3038BDF8),
                     borderRadius: BorderRadius.circular(100),
@@ -1058,7 +1093,7 @@ class _P2PChatScreenState extends State<P2PChatScreen> {
                   child: Text(
                     '+$queueCount in queue',
                     style: GoogleFonts.jetBrainsMono(
-                      fontSize: 9.0,
+                      fontSize: 8.5,
                       fontWeight: FontWeight.w800,
                       color: const Color(0xFF38BDF8),
                     ),
@@ -1068,14 +1103,14 @@ class _P2PChatScreenState extends State<P2PChatScreen> {
             ],
           ),
           if (!isSealing) ...[
-            const SizedBox(height: 5),
+            const SizedBox(height: 4),
             ClipRRect(
               borderRadius: BorderRadius.circular(100),
               child: LinearProgressIndicator(
                 value: progress,
                 backgroundColor: const Color(0x20FFFFFF),
                 valueColor: const AlwaysStoppedAnimation(Color(0xFF34D399)),
-                minHeight: 2.5,
+                minHeight: 2.0,
               ),
             ),
           ],
@@ -1085,14 +1120,14 @@ class _P2PChatScreenState extends State<P2PChatScreen> {
   }
 
   // ==========================================
-  // 8. COMPOSE INPUT BAR
+  // 9. COMPOSE INPUT BAR
   // ==========================================
   Widget _buildComposeBar(bool isMobile) {
     if (_voiceNoteService.isRecording) {
       return Container(
         padding: EdgeInsets.symmetric(
-          horizontal: isMobile ? 8 : 16,
-          vertical: isMobile ? 8 : 12,
+          horizontal: isMobile ? 8 : 14,
+          vertical: isMobile ? 7 : 10,
         ),
         decoration: BoxDecoration(
           color: const Color(0x22160F2B),
@@ -1103,7 +1138,7 @@ class _P2PChatScreenState extends State<P2PChatScreen> {
           children: [
             // Pulsing Red REC Indicator
             Container(
-              padding: EdgeInsets.symmetric(horizontal: isMobile ? 6 : 10, vertical: 3),
+              padding: EdgeInsets.symmetric(horizontal: isMobile ? 5 : 8, vertical: 2.5),
               decoration: BoxDecoration(
                 color: const Color(0x25EF4444),
                 borderRadius: BorderRadius.circular(100),
@@ -1113,8 +1148,8 @@ class _P2PChatScreenState extends State<P2PChatScreen> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Container(
-                    width: 6,
-                    height: 6,
+                    width: 5,
+                    height: 5,
                     decoration: const BoxDecoration(
                       shape: BoxShape.circle,
                       color: Color(0xFFEF4444),
@@ -1124,7 +1159,7 @@ class _P2PChatScreenState extends State<P2PChatScreen> {
                   Text(
                     'REC',
                     style: GoogleFonts.jetBrainsMono(
-                      fontSize: 9.0,
+                      fontSize: 8.5,
                       fontWeight: FontWeight.w900,
                       color: const Color(0xFFEF4444),
                     ),
@@ -1132,30 +1167,30 @@ class _P2PChatScreenState extends State<P2PChatScreen> {
                 ],
               ),
             ),
-            SizedBox(width: isMobile ? 6 : 12),
+            SizedBox(width: isMobile ? 5 : 10),
 
             // Live Timer
             Text(
               _voiceNoteService.formattedDuration,
               style: GoogleFonts.jetBrainsMono(
-                fontSize: isMobile ? 11.5 : 14,
+                fontSize: isMobile ? 11.0 : 13.0,
                 fontWeight: FontWeight.w800,
                 color: Colors.white,
               ),
             ),
-            SizedBox(width: isMobile ? 6 : 14),
+            SizedBox(width: isMobile ? 5 : 12),
 
             // Live Waveform Visualizer
             Expanded(
               child: SizedBox(
-                height: 22,
+                height: 20,
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: List.generate(isMobile ? 12 : 20, (i) {
+                  children: List.generate(isMobile ? 10 : 18, (i) {
                     final h = (0.25 + (0.75 * (i % 4 == 0 ? 0.9 : (i % 3 == 0 ? 0.6 : 0.35)))).clamp(0.2, 1.0);
                     return Container(
-                      width: 2.2,
-                      height: 22 * h,
+                      width: 2.0,
+                      height: 20 * h,
                       decoration: BoxDecoration(
                         color: const Color(0xFFC084FC),
                         borderRadius: BorderRadius.circular(100),
@@ -1165,7 +1200,7 @@ class _P2PChatScreenState extends State<P2PChatScreen> {
                 ),
               ),
             ),
-            SizedBox(width: isMobile ? 6 : 12),
+            SizedBox(width: isMobile ? 5 : 10),
 
             // Cancel Button
             if (isMobile)
@@ -1175,15 +1210,15 @@ class _P2PChatScreenState extends State<P2PChatScreen> {
                   onTap: _cancelVoiceRecording,
                   borderRadius: BorderRadius.circular(8),
                   child: Container(
-                    width: 32,
-                    height: 32,
+                    width: 30,
+                    height: 30,
                     decoration: BoxDecoration(
                       color: const Color(0x22F43F5E),
                       borderRadius: BorderRadius.circular(8),
                       border: Border.all(color: const Color(0x40F43F5E)),
                     ),
                     child: const Center(
-                      child: Icon(Icons.delete_outline_rounded, color: Color(0xFFF43F5E), size: 16),
+                      child: Icon(Icons.delete_outline_rounded, color: Color(0xFFF43F5E), size: 15),
                     ),
                   ),
                 ),
@@ -1191,13 +1226,13 @@ class _P2PChatScreenState extends State<P2PChatScreen> {
             else
               CyberButton(
                 variant: CyberButtonVariant.danger,
-                height: 36,
-                padding: const EdgeInsets.symmetric(horizontal: 14),
+                height: 34,
+                padding: const EdgeInsets.symmetric(horizontal: 12),
                 icon: Icons.delete_outline_rounded,
                 onTap: _cancelVoiceRecording,
                 child: const Text('Cancel'),
               ),
-            SizedBox(width: isMobile ? 6 : 8),
+            SizedBox(width: isMobile ? 5 : 6),
 
             // Send Voice Note Button
             if (isMobile)
@@ -1207,14 +1242,14 @@ class _P2PChatScreenState extends State<P2PChatScreen> {
                   onTap: _sendVoiceRecording,
                   borderRadius: BorderRadius.circular(8),
                   child: Container(
-                    width: 32,
-                    height: 32,
+                    width: 30,
+                    height: 30,
                     decoration: BoxDecoration(
                       color: const Color(0xFF10B981),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: const Center(
-                      child: Icon(Icons.send_rounded, color: Color(0xFF090D16), size: 16),
+                      child: Icon(Icons.send_rounded, color: Color(0xFF090D16), size: 15),
                     ),
                   ),
                 ),
@@ -1222,8 +1257,8 @@ class _P2PChatScreenState extends State<P2PChatScreen> {
             else
               CyberButton(
                 variant: CyberButtonVariant.emerald,
-                height: 36,
-                padding: const EdgeInsets.symmetric(horizontal: 18),
+                height: 34,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
                 icon: Icons.send_rounded,
                 onTap: _sendVoiceRecording,
                 child: const Text('Send'),
@@ -1235,8 +1270,8 @@ class _P2PChatScreenState extends State<P2PChatScreen> {
 
     return Container(
       padding: EdgeInsets.symmetric(
-        horizontal: isMobile ? 8 : 14,
-        vertical: isMobile ? 8 : 12,
+        horizontal: isMobile ? 6 : 12,
+        vertical: isMobile ? 7 : 10,
       ),
       decoration: BoxDecoration(
         color: const Color(0x18FFFFFF),
@@ -1251,17 +1286,17 @@ class _P2PChatScreenState extends State<P2PChatScreen> {
               message: 'Attach & Seal Files',
               child: InkWell(
                 onTap: _pickAndSealAsset,
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(9),
                 child: Container(
-                  width: 36,
-                  height: 36,
+                  width: 34,
+                  height: 34,
                   decoration: BoxDecoration(
                     color: const Color(0x2210B981),
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: BorderRadius.circular(9),
                     border: Border.all(color: const Color(0x4010B981)),
                   ),
                   child: const Center(
-                    child: Icon(Icons.attach_file_rounded, color: Color(0xFF34D399), size: 18),
+                    child: Icon(Icons.attach_file_rounded, color: Color(0xFF34D399), size: 17),
                   ),
                 ),
               ),
@@ -1269,86 +1304,86 @@ class _P2PChatScreenState extends State<P2PChatScreen> {
           else
             CyberButton(
               variant: CyberButtonVariant.emerald,
-              height: 40,
-              padding: const EdgeInsets.symmetric(horizontal: 14),
+              height: 38,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
               icon: Icons.attach_file_rounded,
               onTap: _pickAndSealAsset,
               child: const Text('Attach & Seal Asset'),
             ),
-          SizedBox(width: isMobile ? 6 : 10),
+          SizedBox(width: isMobile ? 5 : 8),
 
-          // Message Input Field with auto-focus & multiline breathing room
+          // Message Input Field with multiline flexibility
           Expanded(
             child: Container(
               decoration: BoxDecoration(
                 color: const Color(0x12FFFFFF),
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: const Color(0x28FFFFFF)),
               ),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 1),
               child: TextField(
                 controller: _textController,
                 focusNode: _chatFocusNode,
                 autofocus: true,
                 minLines: 1,
                 maxLines: 4,
-                style: GoogleFonts.plusJakartaSans(color: Colors.white, fontSize: isMobile ? 13.0 : 13.5),
+                style: GoogleFonts.plusJakartaSans(color: Colors.white, fontSize: isMobile ? 12.5 : 13.5),
                 decoration: InputDecoration(
                   border: InputBorder.none,
                   isDense: true,
-                  contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                  contentPadding: const EdgeInsets.symmetric(vertical: 7),
                   hintText: isMobile ? 'Encrypted message...' : 'Type an encrypted P2P message...',
-                  hintStyle: GoogleFonts.plusJakartaSans(color: const Color(0xFF64748B), fontSize: isMobile ? 12.5 : 13),
+                  hintStyle: GoogleFonts.plusJakartaSans(color: const Color(0xFF64748B), fontSize: isMobile ? 12.0 : 13),
                 ),
                 onSubmitted: (_) => _sendMessage(),
               ),
             ),
           ),
-          SizedBox(width: isMobile ? 5 : 8),
+          SizedBox(width: isMobile ? 4 : 6),
 
           // Send Audio File Button (Direct system audio file picker)
           Tooltip(
             message: 'Send Audio File (.mp3, .m4a, .wav)',
             child: InkWell(
               onTap: _pickAudioFileDirectly,
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(9),
               child: Container(
-                width: isMobile ? 34 : 40,
-                height: isMobile ? 34 : 40,
+                width: isMobile ? 32 : 38,
+                height: isMobile ? 32 : 38,
                 decoration: BoxDecoration(
                   color: const Color(0x2238BDF8),
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(9),
                   border: Border.all(color: const Color(0x4038BDF8)),
                 ),
                 child: Center(
-                  child: Icon(Icons.audio_file_rounded, color: const Color(0xFF38BDF8), size: isMobile ? 17 : 20),
+                  child: Icon(Icons.audio_file_rounded, color: const Color(0xFF38BDF8), size: isMobile ? 16 : 19),
                 ),
               ),
             ),
           ),
-          SizedBox(width: isMobile ? 5 : 6),
+          SizedBox(width: isMobile ? 4 : 5),
 
           // WhatsApp-style Voice Note Mic Button
           Tooltip(
             message: 'Record Voice Note',
             child: InkWell(
               onTap: _startVoiceRecording,
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(9),
               child: Container(
-                width: isMobile ? 34 : 40,
-                height: isMobile ? 34 : 40,
+                width: isMobile ? 32 : 38,
+                height: isMobile ? 32 : 38,
                 decoration: BoxDecoration(
                   color: const Color(0x22C084FC),
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(9),
                   border: Border.all(color: const Color(0x40C084FC)),
                 ),
                 child: Center(
-                  child: Icon(Icons.mic_rounded, color: const Color(0xFFC084FC), size: isMobile ? 18 : 21),
+                  child: Icon(Icons.mic_rounded, color: const Color(0xFFC084FC), size: isMobile ? 17 : 20),
                 ),
               ),
             ),
           ),
-          SizedBox(width: isMobile ? 5 : 6),
+          SizedBox(width: isMobile ? 4 : 5),
 
           // Send Button
           if (isMobile)
@@ -1356,16 +1391,16 @@ class _P2PChatScreenState extends State<P2PChatScreen> {
               message: 'Send',
               child: InkWell(
                 onTap: _sendMessage,
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(9),
                 child: Container(
-                  width: 34,
-                  height: 34,
+                  width: 32,
+                  height: 32,
                   decoration: BoxDecoration(
                     color: Colors.white,
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: BorderRadius.circular(9),
                   ),
                   child: const Center(
-                    child: Icon(Icons.send_rounded, color: Color(0xFF090D16), size: 16),
+                    child: Icon(Icons.send_rounded, color: Color(0xFF090D16), size: 15),
                   ),
                 ),
               ),
@@ -1373,8 +1408,8 @@ class _P2PChatScreenState extends State<P2PChatScreen> {
           else
             CyberButton(
               variant: CyberButtonVariant.whitePill,
-              height: 40,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
+              height: 38,
+              padding: const EdgeInsets.symmetric(horizontal: 14),
               icon: Icons.send_rounded,
               onTap: _sendMessage,
               child: const Text('Send'),
@@ -1386,18 +1421,108 @@ class _P2PChatScreenState extends State<P2PChatScreen> {
 }
 
 // ==========================================
-// LIVE PEER TYPING ANIMATION BUBBLE
+// SLIDE-TO-REPLY GESTURE WRAPPER
 // ==========================================
-class _TypingBubble extends StatefulWidget {
-  final String peerName;
+class _SlideToReplyBubble extends StatefulWidget {
+  final Widget child;
+  final VoidCallback onReply;
 
-  const _TypingBubble({required this.peerName});
+  const _SlideToReplyBubble({
+    super.key,
+    required this.child,
+    required this.onReply,
+  });
 
   @override
-  State<_TypingBubble> createState() => _TypingBubbleState();
+  State<_SlideToReplyBubble> createState() => _SlideToReplyBubbleState();
 }
 
-class _TypingBubbleState extends State<_TypingBubble> with SingleTickerProviderStateMixin {
+class _SlideToReplyBubbleState extends State<_SlideToReplyBubble> with SingleTickerProviderStateMixin {
+  double _dragOffset = 0.0;
+  bool _triggered = false;
+
+  void _onHorizontalDragUpdate(DragUpdateDetails details) {
+    // Only slide left-to-right
+    if (details.delta.dx > 0 || _dragOffset > 0) {
+      setState(() {
+        _dragOffset = (_dragOffset + details.delta.dx * 0.7).clamp(0.0, 70.0);
+      });
+      if (_dragOffset >= 42.0 && !_triggered) {
+        _triggered = true;
+        HapticFeedback.lightImpact();
+      }
+    }
+  }
+
+  void _onHorizontalDragEnd(DragEndDetails details) {
+    if (_dragOffset >= 42.0) {
+      widget.onReply();
+    }
+    setState(() {
+      _dragOffset = 0.0;
+      _triggered = false;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final progress = (_dragOffset / 42.0).clamp(0.0, 1.0);
+
+    return Stack(
+      alignment: Alignment.centerLeft,
+      children: [
+        // Glowing Reply Icon revealing on slide
+        if (_dragOffset > 5.0)
+          Positioned(
+            left: (_dragOffset * 0.45).clamp(4.0, 24.0),
+            child: Opacity(
+              opacity: progress,
+              child: Transform.scale(
+                scale: 0.6 + (0.4 * progress),
+                child: Container(
+                  width: 28,
+                  height: 28,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: _triggered ? const Color(0xFFC084FC) : const Color(0x35C084FC),
+                    border: Border.all(color: const Color(0xFFC084FC), width: 1.5),
+                  ),
+                  child: const Center(
+                    child: Icon(Icons.reply_rounded, size: 16, color: Colors.white),
+                  ),
+                ),
+              ),
+            ),
+          ),
+
+        // Sliding Message Bubble
+        GestureDetector(
+          behavior: HitTestBehavior.translucent,
+          onHorizontalDragUpdate: _onHorizontalDragUpdate,
+          onHorizontalDragEnd: _onHorizontalDragEnd,
+          child: Transform.translate(
+            offset: Offset(_dragOffset, 0),
+            child: widget.child,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ==========================================
+// IN-STREAM PEER TYPING DOTS BUBBLE
+// ==========================================
+class _TypingDotsBubble extends StatefulWidget {
+  final String peerName;
+
+  const _TypingDotsBubble({required this.peerName});
+
+  @override
+  State<_TypingDotsBubble> createState() => _TypingDotsBubbleState();
+}
+
+class _TypingDotsBubbleState extends State<_TypingDotsBubble> with SingleTickerProviderStateMixin {
   late AnimationController _animController;
 
   @override
@@ -1405,7 +1530,7 @@ class _TypingBubbleState extends State<_TypingBubble> with SingleTickerProviderS
     super.initState();
     _animController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1200),
+      duration: const Duration(milliseconds: 1100),
     )..repeat();
   }
 
@@ -1417,56 +1542,48 @@ class _TypingBubbleState extends State<_TypingBubble> with SingleTickerProviderS
 
   @override
   Widget build(BuildContext context) {
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: Container(
-        margin: const EdgeInsets.only(left: 14, bottom: 6, top: 2),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          color: const Color(0x351F1538),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: const Color(0x30C084FC)),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: const Color(0x25FFFFFF),
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(16),
+          topRight: Radius.circular(16),
+          bottomLeft: Radius.circular(4),
+          bottomRight: Radius.circular(16),
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              '${widget.peerName} is typing',
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 11.5,
-                fontWeight: FontWeight.w600,
-                color: const Color(0xFFC084FC),
-              ),
-            ),
-            const SizedBox(width: 8),
-            AnimatedBuilder(
-              animation: _animController,
-              builder: (context, child) {
-                return Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: List.generate(3, (index) {
-                    final offset = ((_animController.value + index * 0.22) % 1.0);
-                    final bounce = math.sin(offset * math.pi);
-                    return Container(
-                      width: 4.5,
-                      height: 4.5,
-                      margin: const EdgeInsets.symmetric(horizontal: 1.5),
-                      transform: Matrix4.translationValues(0, -3.5 * bounce.clamp(0.0, 1.0), 0),
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: Color.lerp(
-                          const Color(0xFF94A3B8),
-                          const Color(0xFF38BDF8),
-                          bounce.clamp(0.0, 1.0),
-                        ),
+        border: Border.all(color: const Color(0x20FFFFFF), width: 1.0),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          AnimatedBuilder(
+            animation: _animController,
+            builder: (context, child) {
+              return Row(
+                mainAxisSize: MainAxisSize.min,
+                children: List.generate(3, (index) {
+                  final offset = ((_animController.value + index * 0.22) % 1.0);
+                  final bounce = math.sin(offset * math.pi);
+                  return Container(
+                    width: 5.0,
+                    height: 5.0,
+                    margin: const EdgeInsets.symmetric(horizontal: 2.0),
+                    transform: Matrix4.translationValues(0, -3.5 * bounce.clamp(0.0, 1.0), 0),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Color.lerp(
+                        const Color(0xFF94A3B8),
+                        const Color(0xFF38BDF8),
+                        bounce.clamp(0.0, 1.0),
                       ),
-                    );
-                  }),
-                );
-              },
-            ),
-          ],
-        ),
+                    ),
+                  );
+                }),
+              );
+            },
+          ),
+        ],
       ),
     );
   }

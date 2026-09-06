@@ -49,6 +49,7 @@ class P2PSessionService extends ChangeNotifier {
 
   // Typing & read receipt state
   bool _isPeerTyping = false;
+  bool _isChatScreenVisible = false;
 
   // Simulated peer timer
   Timer? _simulatedResponseTimer;
@@ -76,6 +77,15 @@ class P2PSessionService extends ChangeNotifier {
   bool get hasActiveTransfer => _isTransferring || _isSealing || _transferQueue.isNotEmpty;
   int get transferQueueCount => _transferQueue.length;
   bool get isPeerTyping => _isPeerTyping;
+  bool get isChatScreenVisible => _isChatScreenVisible;
+
+  /// Updates whether the user is actively viewing the P2P chat screen
+  void setChatScreenVisible(bool visible) {
+    _isChatScreenVisible = visible;
+    if (visible) {
+      markMessagesAsSeen();
+    }
+  }
 
   /// Dispatches a live typing status packet to the remote peer
   Future<void> sendTypingIndicator(bool isTyping) async {
@@ -90,8 +100,9 @@ class P2PSessionService extends ChangeNotifier {
     }
   }
 
-  /// Sends a read receipt packet indicating all messages were viewed
+  /// Sends a read receipt packet indicating all messages were viewed (only if screen is visible)
   Future<void> markMessagesAsSeen() async {
+    if (!_isChatScreenVisible) return;
     if (_activePeer != null && !_activePeer!.isSimulated) {
       try {
         final packet = jsonEncode({
@@ -539,8 +550,10 @@ class P2PSessionService extends ChangeNotifier {
         _messages.add(incoming);
         _isPeerTyping = false;
         notifyListeners();
-        // Acknowledge read receipt back to remote peer
-        markMessagesAsSeen();
+        // Acknowledge read receipt back to remote peer ONLY if local user is currently on the chat screen
+        if (_isChatScreenVisible) {
+          markMessagesAsSeen();
+        }
       } else if (type == 'typing') {
         _isPeerTyping = json['isTyping'] == true;
         notifyListeners();
@@ -570,7 +583,9 @@ class P2PSessionService extends ChangeNotifier {
         );
         _messages.add(incomingMsg);
         notifyListeners();
-        markMessagesAsSeen();
+        if (_isChatScreenVisible) {
+          markMessagesAsSeen();
+        }
       } else if (type == 'session_leave') {
         _appendSystemNotice('${_activePeer?.displayName ?? "Remote peer"} ended the session.');
         _sessionState = P2PSessionState.disconnected;

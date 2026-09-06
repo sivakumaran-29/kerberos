@@ -38,8 +38,8 @@ class _VoiceNotePlayerWidgetState extends State<VoiceNotePlayerWidget> with Sing
     _player = AudioPlayer();
     _totalDuration = Duration(seconds: widget.file.durationSeconds > 0 ? widget.file.durationSeconds : 0);
 
-    // Generate deterministic 22-bar waveform from SHA-256 hash
-    _waveformHeights = _generateWaveform(widget.file.sha256Hash, 22);
+    // Generate deterministic 14-bar waveform from SHA-256 hash for ultra-compact layout
+    _waveformHeights = _generateWaveform(widget.file.sha256Hash, 14);
 
     _player.onPlayerStateChanged.listen((state) {
       if (mounted) {
@@ -180,16 +180,19 @@ class _VoiceNotePlayerWidgetState extends State<VoiceNotePlayerWidget> with Sing
 
     final primaryAccent = widget.isSelf ? const Color(0xFFC084FC) : const Color(0xFF34D399);
     final screenWidth = MediaQuery.of(context).size.width;
-    final cardMaxWidth = (screenWidth * 0.72).clamp(210.0, 280.0);
+    final isMobile = screenWidth < 640;
+    final cardMaxWidth = isMobile
+        ? (screenWidth * 0.62).clamp(160.0, 210.0)
+        : (screenWidth * 0.52).clamp(175.0, 230.0);
 
     return Container(
       constraints: BoxConstraints(maxWidth: cardMaxWidth),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
       decoration: BoxDecoration(
         color: Colors.black.withValues(alpha: 0.35),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: primaryAccent.withValues(alpha: 0.3),
+          color: primaryAccent.withValues(alpha: 0.25),
           width: 1.0,
         ),
       ),
@@ -200,49 +203,49 @@ class _VoiceNotePlayerWidgetState extends State<VoiceNotePlayerWidget> with Sing
           // Row 1: Play/Pause Button + Scrubbable Waveform
           Row(
             children: [
-              // Circular Play / Pause Button (WhatsApp-sized 36x36)
+              // Circular Play / Pause Button (Ultra-compact 28x28)
               InkWell(
                 onTap: isReady ? _togglePlay : null,
                 borderRadius: BorderRadius.circular(100),
                 child: Container(
-                  width: 36,
-                  height: 36,
+                  width: 28,
+                  height: 28,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     gradient: LinearGradient(
                       colors: [
                         primaryAccent,
-                        primaryAccent.withValues(alpha: 0.8),
+                        primaryAccent.withValues(alpha: 0.85),
                       ],
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: primaryAccent.withValues(alpha: _isPlaying ? 0.45 : 0.2),
-                        blurRadius: _isPlaying ? 10 : 6,
+                        color: primaryAccent.withValues(alpha: _isPlaying ? 0.35 : 0.15),
+                        blurRadius: _isPlaying ? 8 : 4,
                       ),
                     ],
                   ),
                   child: Center(
                     child: !isReady
-                        ? SizedBox(
-                            width: 16,
-                            height: 16,
+                        ? const SizedBox(
+                            width: 12,
+                            height: 12,
                             child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF090D16)),
+                              strokeWidth: 1.8,
+                              valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF090D16)),
                             ),
                           )
                         : Icon(
                             _isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
                             color: const Color(0xFF090D16),
-                            size: 22,
+                            size: 16,
                           ),
                   ),
                 ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 7),
 
               // Scrubbable Waveform Bars
               Expanded(
@@ -265,7 +268,7 @@ class _VoiceNotePlayerWidgetState extends State<VoiceNotePlayerWidget> with Sing
                     }
                   },
                   child: SizedBox(
-                    height: 28,
+                    height: 20,
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       crossAxisAlignment: CrossAxisAlignment.center,
@@ -275,12 +278,12 @@ class _VoiceNotePlayerWidgetState extends State<VoiceNotePlayerWidget> with Sing
                         final heightFactor = _waveformHeights[idx];
 
                         return Container(
-                          width: 2.5,
-                          height: 24 * heightFactor,
+                          width: 2.0,
+                          height: 18 * heightFactor,
                           decoration: BoxDecoration(
                             color: isPassed
                                 ? primaryAccent
-                                : const Color(0xFF64748B).withValues(alpha: 0.5),
+                                : const Color(0xFF64748B).withValues(alpha: 0.45),
                             borderRadius: BorderRadius.circular(100),
                           ),
                         );
@@ -291,41 +294,41 @@ class _VoiceNotePlayerWidgetState extends State<VoiceNotePlayerWidget> with Sing
               ),
             ],
           ),
-          const SizedBox(height: 5),
+          const SizedBox(height: 3),
 
           // Row 2: Duration, Seal Badge, Speed Chip, and Optional Download Button
           Row(
             children: [
-              // Elapsed / Total Duration (WhatsApp style)
+              // Elapsed / Total Duration
               Text(
                 _isPlaying || _position.inSeconds > 0
                     ? _formatDuration(_position)
                     : _formatDuration(_totalDuration),
                 style: GoogleFonts.jetBrainsMono(
-                  fontSize: 10,
+                  fontSize: 8.5,
                   fontWeight: FontWeight.w700,
                   color: const Color(0xFF94A3B8),
                 ),
               ),
-              const SizedBox(width: 6),
+              const SizedBox(width: 5),
 
               // Micro C2PA Hardware Seal Badge
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1.0),
                 decoration: BoxDecoration(
                   color: const Color(0x1810B981),
-                  borderRadius: BorderRadius.circular(4),
+                  borderRadius: BorderRadius.circular(3),
                   border: Border.all(color: const Color(0x3510B981)),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.verified_user_rounded, size: 9, color: Color(0xFF34D399)),
-                    const SizedBox(width: 3),
+                    const Icon(Icons.verified_user_rounded, size: 8, color: Color(0xFF34D399)),
+                    const SizedBox(width: 2),
                     Text(
                       'C2PA',
                       style: GoogleFonts.jetBrainsMono(
-                        fontSize: 7.5,
+                        fontSize: 6.5,
                         fontWeight: FontWeight.w800,
                         color: const Color(0xFF34D399),
                       ),
@@ -338,18 +341,18 @@ class _VoiceNotePlayerWidgetState extends State<VoiceNotePlayerWidget> with Sing
               // WhatsApp-style Speed Toggle Chip (1x, 1.5x, 2x)
               InkWell(
                 onTap: _toggleSpeed,
-                borderRadius: BorderRadius.circular(6),
+                borderRadius: BorderRadius.circular(4),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1.0),
                   decoration: BoxDecoration(
                     color: const Color(0x22FFFFFF),
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: const Color(0x35FFFFFF)),
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(color: const Color(0x30FFFFFF)),
                   ),
                   child: Text(
                     '${_speed}x',
                     style: GoogleFonts.jetBrainsMono(
-                      fontSize: 9.5,
+                      fontSize: 8.0,
                       fontWeight: FontWeight.w800,
                       color: Colors.white,
                     ),
@@ -359,13 +362,13 @@ class _VoiceNotePlayerWidgetState extends State<VoiceNotePlayerWidget> with Sing
 
               // Optional Download Button for System Audio Files (Omitted for live mic recordings)
               if (isReady && !widget.file.isLiveRecorded) ...[
-                const SizedBox(width: 4),
+                const SizedBox(width: 3),
                 IconButton(
                   tooltip: 'Download Audio',
                   visualDensity: VisualDensity.compact,
                   padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
-                  icon: const Icon(Icons.download_rounded, size: 16, color: Color(0xFF38BDF8)),
+                  constraints: const BoxConstraints(minWidth: 20, minHeight: 20),
+                  icon: const Icon(Icons.download_rounded, size: 14, color: Color(0xFF38BDF8)),
                   onPressed: () {
                     FileDownloadHelper.downloadFile(
                       context: context,
