@@ -65,13 +65,24 @@ class _VerificationPageState extends ConsumerState<VerificationPage> {
     final ledger = ref.read(ledgerProvider);
     final history = ledger.getHistory();
 
+    // Reset target anchor if it was locked to the sample record, so auto-detect runs freely
+    final sampleRecord = history.where((r) => r.filePath.contains('satellite')).firstOrNull ?? history.firstOrNull;
+    String? targetId = _selectedTargetRecordId;
+    if (targetId == sampleRecord?.id) {
+      targetId = null;
+    }
+
+    final newReport = VerificationService.analyzeAsset(
+      bytes: bytes,
+      fileName: name,
+      ledgerHistory: history,
+      targetRecordId: targetId,
+    );
+
     setState(() {
-      _report = VerificationService.analyzeAsset(
-        bytes: bytes,
-        fileName: name,
-        ledgerHistory: history,
-        targetRecordId: _selectedTargetRecordId,
-      );
+      _report = newReport;
+      // Auto-sync target anchor selector to the matched sealed record so user sees it clearly
+      _selectedTargetRecordId = newReport.matchedRecord?.id ?? targetId;
     });
   }
 
@@ -93,7 +104,20 @@ class _VerificationPageState extends ConsumerState<VerificationPage> {
   Future<void> _pickAndAnalyzeFile() async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
-      allowedExtensions: ['png', 'jpg', 'jpeg', 'pdf', 'webp', 'bin'],
+      allowedExtensions: [
+        // Images
+        'png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp', 'tiff', 'svg', 'heic', 'ico',
+        // Documents
+        'pdf', 'doc', 'docx', 'odt', 'rtf', 'txt', 'pages', 'csv', 'xlsx', 'xls',
+        // Presentations
+        'ppt', 'pptx', 'odp', 'key', 'pps', 'ppsx',
+        // Videos
+        'mp4', 'mov', 'avi', 'mkv', 'webm', 'flv', 'wmv', 'm4v', '3gp',
+        // Audios
+        'mp3', 'wav', 'm4a', 'aac', 'flac', 'ogg', 'opus', 'wma', 'aiff',
+        // Binary
+        'bin',
+      ],
     );
     if (result != null && result.files.isNotEmpty) {
       Uint8List? bytes;
@@ -415,10 +439,26 @@ class _VerificationPageState extends ConsumerState<VerificationPage> {
                           ...history.map((r) {
                             final rName = r.filePath.replaceAll(r'\', '/').split('/').last;
                             final shortHash = '${r.originalFileHash.substring(0, 8)}...${r.originalFileHash.substring(r.originalFileHash.length - 6)}';
+                            final lower = rName.toLowerCase();
+                            String iconStr = '🔒';
+                            if (lower.endsWith('.pdf')) {
+                              iconStr = '📄';
+                            } else if (lower.endsWith('.doc') || lower.endsWith('.docx') || lower.endsWith('.txt') || lower.endsWith('.rtf')) {
+                              iconStr = '📝';
+                            } else if (lower.endsWith('.ppt') || lower.endsWith('.pptx') || lower.endsWith('.odp')) {
+                              iconStr = '📊';
+                            } else if (lower.endsWith('.png') || lower.endsWith('.jpg') || lower.endsWith('.jpeg') || lower.endsWith('.webp')) {
+                              iconStr = '🖼️';
+                            } else if (lower.endsWith('.mp4') || lower.endsWith('.mov') || lower.endsWith('.avi') || lower.endsWith('.mkv')) {
+                              iconStr = '🎬';
+                            } else if (lower.endsWith('.mp3') || lower.endsWith('.wav') || lower.endsWith('.m4a') || lower.endsWith('.aac')) {
+                              iconStr = '🎵';
+                            }
+
                             return DropdownMenuItem<String?>(
                               value: r.id,
                               child: Text(
-                                '🔒 $rName  [$shortHash]',
+                                '$iconStr $rName  [$shortHash]',
                                 style: GoogleFonts.jetBrainsMono(
                                   fontSize: 11,
                                   fontWeight: FontWeight.w600,
@@ -501,7 +541,7 @@ class _VerificationPageState extends ConsumerState<VerificationPage> {
         icon = Icons.gpp_bad_rounded;
         statusTitle = 'BITSTREAM SHATTERED — TAMPERING INTERCEPTION DETECTED';
         statusSubtitle = _report.originalSealedName != null
-            ? 'Audited against sealed record "${_report.originalSealedName}". Microscopic single-byte corruption mathematically broke the SHA-256 seal. Silent alert logged; WebRTC dropped.'
+            ? 'Audited against sealed record "${_report.originalSealedName}". ${_report.matchReason != null && _report.matchReason!.isNotEmpty ? _report.matchReason! : "Microscopic corruption mathematically broke the SHA-256 seal. File content has diverged from sealed provenance manifest."}'
             : 'Microscopic single-byte corruption mathematically broke the SHA-256 seal. Silent alert logged; WebRTC dropped.';
         break;
       case VerificationVerdict.steganographyAltered:
@@ -529,7 +569,7 @@ class _VerificationPageState extends ConsumerState<VerificationPage> {
         icon = Icons.help_outline_rounded;
         statusTitle = 'UNSEALED ASSET — NO CRYPTOGRAPHIC ANCHOR FOUND';
         statusSubtitle =
-            'This asset has not been signed or registered under the Obsidian Protocol ledger. Select an anchor above if auditing an altered file.';
+            'This asset could not be auto-correlated with any sealed record in your air-gapped ledger. If this is an edited or renamed version of an asset you previously sealed, select its original seal in the anchor dropdown above to inspect divergence metrics.';
         break;
     }
 

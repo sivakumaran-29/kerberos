@@ -2326,7 +2326,7 @@ class _WorkspaceScreenState extends ConsumerState<WorkspaceScreen> with SingleTi
                     ),
                     const SizedBox(height: 6),
                     const Text(
-                      'Supports Images, RAW, Documents, PDFs, Video (Automatic C2PA Sealing)',
+                      'Supports Images, PDFs, Docs, all PPTs, Videos, and Audio (All-Format C2PA Sealing)',
                       style: TextStyle(fontSize: 11, color: CyberTheme.textMuted),
                     ),
                     const SizedBox(height: 16),

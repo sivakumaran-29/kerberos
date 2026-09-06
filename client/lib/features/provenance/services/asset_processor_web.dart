@@ -16,12 +16,14 @@ class AssetProcessorImpl {
     // 2. FFI Rust C2PA Injection (MOCKED FOR WEB)
     // Browsers cannot execute native .dll/.so files.
     
-    // 3. Document Parsing & Steganography Vector (Simulated for Web)
-    final lowerName = file.name.toLowerCase();
-    List<double>? perceptualHash;
-    if (lowerName.endsWith('.png') || lowerName.endsWith('.jpg') || lowerName.endsWith('.jpeg')) {
-      perceptualHash = List.generate(256, (index) => (bytes.length % (index + 1)) / 255.0);
-    }
+    // 3. Document Parsing & Steganography Vector (100% Web Compatible)
+    final perceptualHash = List.generate(256, (index) {
+      if (bytes.isEmpty) return 0.0;
+      final sampleIdx = (index * 7919) % bytes.length;
+      final byteVal = bytes[sampleIdx];
+      final secondary = bytes[(sampleIdx + index + 1) % bytes.length];
+      return (((byteVal ^ secondary) + (index % 17)) % 256) / 255.0;
+    });
 
     return AssetMetadata(
       filePath: file.name, // Web only provides file names, not absolute paths

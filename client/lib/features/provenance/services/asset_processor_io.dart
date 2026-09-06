@@ -26,13 +26,17 @@ class AssetProcessorImpl {
     final hashStr = hashDigest.toString();
 
     String? extractedText;
-    List<double>? perceptualHash;
     final lowerName = file.name.toLowerCase();
+
     if (lowerName.endsWith('.pdf')) {
       extractedText = _parsePdf(bytes);
-    } else if (lowerName.endsWith('.png') || lowerName.endsWith('.jpg') || lowerName.endsWith('.jpeg')) {
-      perceptualHash = _generatePerceptualHash(bytes);
+    } else if (lowerName.endsWith('.txt') || lowerName.endsWith('.csv') || lowerName.endsWith('.rtf') || lowerName.endsWith('.md')) {
+      extractedText = _parseText(bytes);
+    } else if (lowerName.endsWith('.docx') || lowerName.endsWith('.pptx') || lowerName.endsWith('.odt')) {
+      extractedText = _parseZipTokens(bytes);
     }
+
+    final perceptualHash = _generatePerceptualHash(bytes);
 
     return AssetMetadata(
       filePath: path.isNotEmpty ? path : file.name,
@@ -61,16 +65,19 @@ class AssetProcessorImpl {
       engine.signAsset(filePath, claimData);
     } catch (_) {}
 
-    // 3. Document Parsing & Steganography Vector
+    // 3. Document Parsing & Steganography Vector for all formats
     String? extractedText;
-    List<double>? perceptualHash;
-
     final lowerPath = filePath.toLowerCase();
+
     if (lowerPath.endsWith('.pdf')) {
       extractedText = _parsePdf(bytes);
-    } else if (lowerPath.endsWith('.png') || lowerPath.endsWith('.jpg') || lowerPath.endsWith('.jpeg')) {
-      perceptualHash = _generatePerceptualHash(bytes);
+    } else if (lowerPath.endsWith('.txt') || lowerPath.endsWith('.csv') || lowerPath.endsWith('.rtf') || lowerPath.endsWith('.md')) {
+      extractedText = _parseText(bytes);
+    } else if (lowerPath.endsWith('.docx') || lowerPath.endsWith('.pptx') || lowerPath.endsWith('.odt')) {
+      extractedText = _parseZipTokens(bytes);
     }
+
+    final perceptualHash = _generatePerceptualHash(bytes);
 
     return AssetMetadata(
       filePath: filePath,
@@ -92,7 +99,35 @@ class AssetProcessorImpl {
     }
   }
 
+  static String? _parseText(List<int> bytes) {
+    try {
+      final probe = bytes.length > 8192 ? bytes.sublist(0, 8192) : bytes;
+      return String.fromCharCodes(probe);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static String? _parseZipTokens(List<int> bytes) {
+    try {
+      // For DOCX/PPTX (OpenXML ZIP archives), scan for text tokens
+      final probe = bytes.length > 16384 ? bytes.sublist(0, 16384) : bytes;
+      final str = String.fromCharCodes(probe);
+      final matches = RegExp(r'<w:t[^>]*>([^<]+)</w:t>|<a:t[^>]*>([^<]+)</a:t>').allMatches(str);
+      final tokens = matches.map((m) => m.group(1) ?? m.group(2) ?? '').where((s) => s.isNotEmpty).take(50).join(' ');
+      return tokens.isNotEmpty ? tokens : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
   static List<double> _generatePerceptualHash(List<int> bytes) {
-    return List.generate(256, (index) => (bytes.length % (index + 1)) / 255.0);
+    if (bytes.isEmpty) return List.filled(256, 0.0);
+    return List.generate(256, (index) {
+      final sampleIdx = (index * 7919) % bytes.length;
+      final byteVal = bytes[sampleIdx];
+      final secondary = bytes[(sampleIdx + index + 1) % bytes.length];
+      return (((byteVal ^ secondary) + (index % 17)) % 256) / 255.0;
+    });
   }
 }

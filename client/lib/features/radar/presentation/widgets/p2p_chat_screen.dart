@@ -236,8 +236,18 @@ class _P2PChatScreenState extends State<P2PChatScreen> with WidgetsBindingObserv
         withData: true,
         type: FileType.custom,
         allowedExtensions: [
-          'png', 'jpg', 'jpeg', 'pdf', 'webp', 'bin', 'txt',
-          'm4a', 'mp3', 'wav', 'aac', 'ogg', 'webm', 'opus', 'flac',
+          // Images
+          'png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp', 'tiff', 'svg', 'heic',
+          // Documents
+          'pdf', 'doc', 'docx', 'odt', 'rtf', 'txt', 'pages', 'csv', 'xlsx', 'xls',
+          // Presentations
+          'ppt', 'pptx', 'odp', 'key', 'pps', 'ppsx',
+          // Videos
+          'mp4', 'mov', 'avi', 'mkv', 'webm', 'flv', 'wmv', 'm4v', '3gp',
+          // Audios
+          'm4a', 'mp3', 'wav', 'aac', 'ogg', 'webm', 'opus', 'flac', 'wma',
+          // Binary
+          'bin',
         ],
       );
       if (result != null && result.files.isNotEmpty) {

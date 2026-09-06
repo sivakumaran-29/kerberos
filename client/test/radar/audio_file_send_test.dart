@@ -23,6 +23,8 @@ class MockWebRTCService extends Fake implements WebRTCService {
   Function(RTCDataChannelState state)? onDataChannelStateChanged;
   @override
   Function(String error)? onRemoteErrorOccurred;
+  @override
+  Function()? onHandshakeAccepted;
 
   String? lastSentTextMessage;
   Uint8List? lastSentBinaryBytes;

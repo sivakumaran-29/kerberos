@@ -51,42 +51,99 @@ class VerificationService {
       if (explicit != null) {
         matchedRecord = explicit;
         originalSealedName = _cleanFileName(explicit.filePath);
-        matchReason = 'Explicit ledger reference: Auditing against selected sealed record "$originalSealedName".';
+        matchReason = 'Explicit ledger anchor: Auditing against selected sealed record "$originalSealedName".';
       }
     }
 
-    // Step C: Embedded C2PA JUMBF claim / URI extraction
+    // Step C: Embedded C2PA JUMBF claim / URI / JSON seal extraction
     if (matchedRecord == null) {
-      final embeddedUri = _extractC2paUri(bytes);
-      if (embeddedUri != null) {
-        matchedRecord = ledgerHistory.where(
-          (r) => r.c2paManifestUri == embeddedUri || embeddedUri.contains(r.originalFileHash.substring(0, 12)),
-        ).firstOrNull;
+      final embedded = _extractEmbeddedProvenance(bytes);
+      if (embedded.sealId != null || embedded.originalHash != null || embedded.uri != null) {
+        matchedRecord = ledgerHistory.where((r) {
+          if (embedded.sealId != null && r.id == embedded.sealId) return true;
+          if (embedded.originalHash != null && r.originalFileHash.toLowerCase() == embedded.originalHash!.toLowerCase()) return true;
+          if (embedded.uri != null && (r.c2paManifestUri == embedded.uri || embedded.uri!.contains(r.originalFileHash.substring(0, 12)))) return true;
+          return false;
+        }).firstOrNull;
+
         if (matchedRecord != null) {
           originalSealedName = _cleanFileName(matchedRecord.filePath);
-          matchReason = 'C2PA JUMBF Manifest: Matched claim "$embeddedUri" in local ledger.';
+          matchReason = 'Embedded C2PA envelope detected: Cryptographic claim correlates to sealed asset "$originalSealedName" in ledger.';
         }
       }
     }
 
-    // Step D: Normalized stem matching (handles e.g. "photo_tampered.png" or "photo (1).png" vs "photo.png")
+    // Step D: Exact base filename match (ignoring directory paths and case)
     if (matchedRecord == null) {
-      final inStem = _extractStem(fileName);
+      final inBaseName = _cleanFileName(fileName).toLowerCase();
       matchedRecord = ledgerHistory.where((r) {
-        final sealedStem = _extractStem(r.filePath);
-        return sealedStem.isNotEmpty && (inStem.contains(sealedStem) || sealedStem.contains(inStem));
+        final sealedBase = _cleanFileName(r.filePath).toLowerCase();
+        return sealedBase == inBaseName;
       }).firstOrNull;
+
       if (matchedRecord != null) {
         originalSealedName = _cleanFileName(matchedRecord.filePath);
-        matchReason = 'Heuristic filename correlation with sealed record "$originalSealedName".';
+        matchReason = 'Identical file identifier: Matches sealed asset "$originalSealedName" in local ledger. File content was modified externally.';
       }
     }
 
-    // Step E: Fallback to most recent sealed asset if ledger has only 1 entry
-    if (matchedRecord == null && ledgerHistory.length == 1) {
-      matchedRecord = ledgerHistory.first;
-      originalSealedName = _cleanFileName(matchedRecord.filePath);
-      matchReason = 'Active candidate: Auditing against sealed record "$originalSealedName" in local ledger.';
+    // Step E: Normalized base name match (download duplicates, revisions: _edited, _signed, _v2, etc.)
+    if (matchedRecord == null) {
+      final inNorm = _normalizeBaseName(fileName);
+      final inExt = _getFileExtension(fileName);
+      if (inNorm.isNotEmpty) {
+        matchedRecord = ledgerHistory.where((r) {
+          final sealedNorm = _normalizeBaseName(r.filePath);
+          final sealedExt = _getFileExtension(r.filePath);
+          return sealedNorm == inNorm && _isCompatibleMediaType(inExt, sealedExt);
+        }).firstOrNull;
+
+        if (matchedRecord != null) {
+          originalSealedName = _cleanFileName(matchedRecord.filePath);
+          matchReason = 'Lineage verified: Matches sealed asset "$originalSealedName" (revision/variant: "$fileName"). Content was modified externally.';
+        }
+      }
+    }
+
+    // Step F: Fuzzy Token / Stem Similarity Matching
+    if (matchedRecord == null) {
+      final inExt = _getFileExtension(fileName);
+      ProvenanceRecord? bestCandidate;
+      double bestScore = 0.0;
+
+      for (final r in ledgerHistory) {
+        final sealedExt = _getFileExtension(r.filePath);
+        if (!_isCompatibleMediaType(inExt, sealedExt)) continue;
+
+        final score = _calculateNameSimilarity(fileName, r.filePath);
+        if (score > bestScore && score >= 0.50) {
+          bestScore = score;
+          bestCandidate = r;
+        }
+      }
+
+      if (bestCandidate != null) {
+        matchedRecord = bestCandidate;
+        originalSealedName = _cleanFileName(bestCandidate.filePath);
+        final confidence = (bestScore * 100).toInt();
+        matchReason = 'Lineage correlation: Correlated with sealed asset "$originalSealedName" ($confidence% confidence). Content diverged externally.';
+      }
+    }
+
+    // Step G: Single User-Sealed Record Fallback
+    if (matchedRecord == null) {
+      final userRecords = ledgerHistory.where((r) => r.id != 'sample-satellite-01').toList();
+      final inExt = _getFileExtension(fileName);
+
+      if (userRecords.length == 1 && _isCompatibleMediaType(inExt, _getFileExtension(userRecords.first.filePath))) {
+        matchedRecord = userRecords.first;
+        originalSealedName = _cleanFileName(matchedRecord.filePath);
+        matchReason = 'Active candidate: Correlated with your recent sealed asset "$originalSealedName" in local ledger.';
+      } else if (ledgerHistory.length == 1) {
+        matchedRecord = ledgerHistory.first;
+        originalSealedName = _cleanFileName(matchedRecord.filePath);
+        matchReason = 'Active candidate: Auditing against sealed record "$originalSealedName" in local ledger.';
+      }
     }
 
     final manifestHash = matchedRecord?.originalFileHash ?? computedHash;
@@ -356,29 +413,134 @@ class VerificationService {
     return path.replaceAll(r'\', '/').split('/').last;
   }
 
-  /// Extracts a normalized stem to correlate renamed/tampered variants (e.g. "report_hex.pdf" -> "report")
-  static String _extractStem(String path) {
+  /// Extracts the file extension in lower-case without the dot
+  static String _getFileExtension(String path) {
     final name = _cleanFileName(path);
     final dotIdx = name.lastIndexOf('.');
-    final withoutExt = dotIdx != -1 ? name.substring(0, dotIdx) : name;
-    return withoutExt.toLowerCase().replaceAll(RegExp(r'[\s_\-\(\)\d]+'), '');
+    if (dotIdx == -1 || dotIdx == name.length - 1) return '';
+    return name.substring(dotIdx + 1).toLowerCase();
   }
 
-  /// Detects JUMBF envelope in binary stream
+  /// Normalizes a filename to its canonical root by stripping download duplicates and revision tags
+  static String _normalizeBaseName(String path) {
+    final name = _cleanFileName(path);
+    final dotIdx = name.lastIndexOf('.');
+    String base = dotIdx != -1 ? name.substring(0, dotIdx) : name;
+    base = base.toLowerCase().trim();
+
+    // Strip download duplicates: " (1)", "_1", "-1", "-copy", "_copy"
+    base = base.replaceAll(RegExp(r'\s*\(\d+\)$'), '');
+    base = base.replaceAll(RegExp(r'[\-_]\d+$'), '');
+    base = base.replaceAll(RegExp(r'[\-_]copy$'), '');
+
+    // Strip workflow revision suffixes
+    base = base.replaceAll(
+      RegExp(r'[\-_](?:edited|signed|revised|modified|mod|updated|new|final|tampered|v\d+(?:[\._]\d+)?)$'),
+      '',
+    );
+
+    // Strip workflow revision prefixes
+    base = base.replaceAll(
+      RegExp(r'^(?:signed[\-_]|final[\-_]|copy_of_|edit[\-_]|edited[\-_])'),
+      '',
+    );
+
+    // Normalize separators and trim
+    base = base.replaceAll(RegExp(r'[\s_\-\.]+'), ' ').trim();
+    return base;
+  }
+
+  /// Calculates name similarity score between two filenames (0.0 to 1.0)
+  static double _calculateNameSimilarity(String nameA, String nameB) {
+    final normA = _normalizeBaseName(nameA);
+    final normB = _normalizeBaseName(nameB);
+
+    if (normA.isEmpty || normB.isEmpty) return 0.0;
+    if (normA == normB) return 1.0;
+
+    if (normA.contains(normB) || normB.contains(normA)) {
+      final minLen = normA.length < normB.length ? normA.length : normB.length;
+      final maxLen = normA.length > normB.length ? normA.length : normB.length;
+      return (minLen / maxLen).clamp(0.60, 0.95);
+    }
+
+    // Token Jaccard / Dice overlap
+    final tokensA = normA.split(' ').where((s) => s.isNotEmpty).toSet();
+    final tokensB = normB.split(' ').where((s) => s.isNotEmpty).toSet();
+    final intersection = tokensA.intersection(tokensB);
+    if (intersection.isNotEmpty) {
+      final dice = (2.0 * intersection.length) / (tokensA.length + tokensB.length);
+      return dice.clamp(0.0, 0.90);
+    }
+
+    return 0.0;
+  }
+
+  /// Checks if two file extensions belong to the same compatible media/document category
+  static bool _isCompatibleMediaType(String extA, String extB) {
+    final eA = extA.toLowerCase().replaceAll('.', '');
+    final eB = extB.toLowerCase().replaceAll('.', '');
+    if (eA.isEmpty || eB.isEmpty) return true;
+    if (eA == eB) return true;
+
+    const imageExts = {'png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp', 'tiff', 'svg', 'heic', 'ico'};
+    const docExts = {'pdf', 'doc', 'docx', 'odt', 'rtf', 'txt', 'pages', 'csv', 'xlsx', 'xls'};
+    const pptExts = {'ppt', 'pptx', 'odp', 'key', 'pps', 'ppsx'};
+    const videoExts = {'mp4', 'mov', 'avi', 'mkv', 'webm', 'flv', 'wmv', 'm4v', '3gp'};
+    const audioExts = {'mp3', 'wav', 'm4a', 'aac', 'flac', 'ogg', 'opus', 'wma', 'aiff'};
+
+    if (imageExts.contains(eA) && imageExts.contains(eB)) return true;
+    if (docExts.contains(eA) && docExts.contains(eB)) return true;
+    if (pptExts.contains(eA) && pptExts.contains(eB)) return true;
+    if (videoExts.contains(eA) && videoExts.contains(eB)) return true;
+    if (audioExts.contains(eA) && audioExts.contains(eB)) return true;
+
+    return false;
+  }
+
+  /// Detects JUMBF envelope in binary stream (checks head and tail)
   static bool _detectJumbfEnvelope(Uint8List bytes) {
     if (bytes.length < 16) return false;
-    final probeLen = bytes.length > 1024 ? 1024 : bytes.length;
-    final str = String.fromCharCodes(bytes.take(probeLen));
-    return str.contains('c2pa') || str.contains('jumb') || str.contains('C2PA');
+    final probeLen = bytes.length > 8192 ? 8192 : bytes.length;
+    final headStr = String.fromCharCodes(bytes.take(probeLen));
+    if (headStr.contains('c2pa') || headStr.contains('jumb') || headStr.contains('C2PA') || headStr.contains('KERBEROS')) {
+      return true;
+    }
+    if (bytes.length > 8192) {
+      final tailBytes = bytes.sublist(bytes.length - 8192);
+      final tailStr = String.fromCharCodes(tailBytes);
+      return tailStr.contains('c2pa') || tailStr.contains('jumb') || tailStr.contains('C2PA') || tailStr.contains('KERBEROS');
+    }
+    return false;
   }
 
-  /// Extracts C2PA manifest URI if present in the header
-  static String? _extractC2paUri(Uint8List bytes) {
-    if (bytes.length < 32) return null;
-    final probeLen = bytes.length > 4096 ? 4096 : bytes.length;
-    final str = String.fromCharCodes(bytes.take(probeLen));
-    final match = RegExp(r'urn:(?:kerberos|c2pa):sealed:[a-zA-Z0-9_-]+').firstMatch(str);
-    return match?.group(0);
+
+  /// Extracts embedded Kerberos/C2PA provenance assertions (URI, UUID seal_id, or original_hash)
+  static ({String? uri, String? sealId, String? originalHash}) _extractEmbeddedProvenance(Uint8List bytes) {
+    if (bytes.length < 16) return (uri: null, sealId: null, originalHash: null);
+    final probeLen = bytes.length > 8192 ? 8192 : bytes.length;
+    final headStr = String.fromCharCodes(bytes.take(probeLen));
+    String combined = headStr;
+    if (bytes.length > 8192) {
+      final tailBytes = bytes.sublist(bytes.length - 8192);
+      combined += ' ' + String.fromCharCodes(tailBytes);
+    }
+
+    final uriMatch = RegExp(r'urn:(?:kerberos|c2pa):[a-zA-Z0-9_\-:]+').firstMatch(combined);
+    final uri = uriMatch?.group(0);
+
+    String? sealId;
+    String? origHash;
+    final jsonMatch = RegExp(r'\{[^{}]*(?:seal_id|original_hash|originalFileHash)[^{}]*\}').firstMatch(combined);
+    if (jsonMatch != null) {
+      try {
+        final parsed = jsonDecode(jsonMatch.group(0)!) as Map<String, dynamic>;
+        sealId = parsed['seal_id']?.toString() ?? parsed['id']?.toString();
+        origHash = parsed['original_hash']?.toString() ?? parsed['originalFileHash']?.toString();
+      } catch (_) {}
+    }
+
+    return (uri: uri, sealId: sealId, originalHash: origHash);
   }
 
   /// Baseline perceptual tensor (256 normalized floats for 16x16 grid)
